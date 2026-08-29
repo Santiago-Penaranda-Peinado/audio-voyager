@@ -1,6 +1,8 @@
+#define _USE_MATH_DEFINES
 #include "graphics/particle_system.hpp"
 #include <glad/glad.h>
 #include <iostream>
+#include <cmath>
 #include <random>
 #include <algorithm>
 
@@ -30,7 +32,7 @@ void ParticleSystem::init_particle_buffers() {
     std::mt19937 rng(42);
     std::uniform_real_distribution<float> dist_theta(0.0f, 2.0f * static_cast<float>(M_PI));
     std::uniform_real_distribution<float> dist_phi(-0.5f * static_cast<float>(M_PI), 0.5f * static_cast<float>(M_PI));
-    std::uniform_real_distribution<float> dist_r(0.5f, 6.0f);
+    std::uniform_real_distribution<float> dist_r(1.0f, 20.0f);
     std::uniform_real_distribution<float> dist_life(0.2f, 1.0f);
     std::uniform_real_distribution<float> dist_mass(0.5f, 1.2f);
 
@@ -40,7 +42,7 @@ void ParticleSystem::init_particle_buffers() {
         float r = dist_r(rng);
 
         float x = r * std::cos(theta) * std::cos(phi);
-        float y = r * std::sin(phi) * 0.4f;
+        float y = r * std::sin(phi) * 0.8f;
         float z = r * std::sin(theta) * std::cos(phi);
 
         initial_particles[i].pos_life[0] = x;
@@ -49,7 +51,7 @@ void ParticleSystem::init_particle_buffers() {
         initial_particles[i].pos_life[3] = dist_life(rng);
 
         glm::vec3 pos(x, y, z);
-        glm::vec3 vel = glm::cross(glm::normalize(pos), glm::vec3(0.0f, 1.0f, 0.0f)) * 2.5f;
+        glm::vec3 vel = glm::cross(glm::normalize(pos), glm::vec3(0.0f, 1.0f, 0.0f)) * 1.5f;
 
         initial_particles[i].vel_mass[0] = vel.x;
         initial_particles[i].vel_mass[1] = vel.y;
@@ -95,7 +97,11 @@ void ParticleSystem::init_shaders() {
     }
 }
 
-void ParticleSystem::update(float dt, float total_time, const core::PhysicsAudioState& audio_state, const core::PhysicsTuners& tuners) {
+void ParticleSystem::update(float dt, float total_time, 
+                            const core::PhysicsAudioState& audio_state, 
+                            const core::AudioSemanticVector& semantic, 
+                            const glm::vec3& cam_pos,
+                            const glm::vec3& laser_pos) {
     if (!compute_shader_.is_valid()) return;
 
     float raw_centroid = audio_state.stream_b.spectral_centroid_norm;
@@ -104,11 +110,11 @@ void ParticleSystem::update(float dt, float total_time, const core::PhysicsAudio
     float raw_rms = audio_state.stream_b.rms;
     float raw_sub_bass = audio_state.stream_a.spectrum_bands[0];
 
-    float smooth_c = smooth_centroid_.update(raw_centroid, dt, tuners.decay_rate);
-    float smooth_d = smooth_dissonance_.update(raw_dissonance, dt, tuners.decay_rate);
-    float smooth_o = smooth_onset_.update(raw_onset, dt, tuners.decay_rate * 2.5f);
-    float smooth_r = smooth_rms_.update(raw_rms, dt, tuners.decay_rate);
-    float smooth_sb = smooth_sub_bass_.update(raw_sub_bass, dt, tuners.decay_rate);
+    float smooth_c = smooth_centroid_.update(raw_centroid, dt, 3.5f);
+    float smooth_d = smooth_dissonance_.update(raw_dissonance, dt, 4.0f);
+    float smooth_o = smooth_onset_.update(raw_onset, dt, 10.0f);
+    float smooth_r = smooth_rms_.update(raw_rms, dt, 3.5f);
+    float smooth_sb = smooth_sub_bass_.update(raw_sub_bass, dt, 3.5f);
 
     AudioPhysicsUbo ubo_data{};
     ubo_data.audio_physics[0] = smooth_c;
@@ -124,22 +130,37 @@ void ParticleSystem::update(float dt, float total_time, const core::PhysicsAudio
     ubo_data.sim_params[0] = std::min(dt, 0.033f);
     ubo_data.sim_params[1] = total_time;
     ubo_data.sim_params[2] = static_cast<float>(particle_count_);
-    ubo_data.sim_params[3] = tuners.damping;
+    ubo_data.sim_params[3] = 0.985f;
 
-    ubo_data.physics_scales[0] = tuners.gravity_scale;
-    ubo_data.physics_scales[1] = tuners.vorticity_scale;
-    ubo_data.physics_scales[2] = tuners.shockwave_scale;
-    ubo_data.physics_scales[3] = tuners.attraction_scale;
+    ubo_data.physics_scales[0] = 1.0f;
+    ubo_data.physics_scales[1] = 1.8f * (1.0f + semantic.weight_crystal * 1.5f);
+    ubo_data.physics_scales[2] = 2.5f;
+    ubo_data.physics_scales[3] = 1.2f;
 
-    ubo_data.color_base[0] = tuners.color_base[0];
-    ubo_data.color_base[1] = tuners.color_base[1];
-    ubo_data.color_base[2] = tuners.color_base[2];
-    ubo_data.color_base[3] = tuners.point_size_scale;
-
-    ubo_data.color_peak[0] = tuners.color_peak[0];
-    ubo_data.color_peak[1] = tuners.color_peak[1];
-    ubo_data.color_peak[2] = tuners.color_peak[2];
+    // Biome-driven particle colors
+    if (semantic.weight_crystal > 0.4f) {
+        ubo_data.color_base[0] = 0.1f; ubo_data.color_base[1] = 0.8f; ubo_data.color_base[2] = 0.5f;
+        ubo_data.color_peak[0] = 1.0f; ubo_data.color_peak[1] = 0.1f; ubo_data.color_peak[2] = 0.2f;
+    } else if (semantic.weight_cyber > 0.4f) {
+        ubo_data.color_base[0] = 0.0f; ubo_data.color_base[1] = 0.7f; ubo_data.color_base[2] = 1.0f;
+        ubo_data.color_peak[0] = 1.0f; ubo_data.color_peak[1] = 0.0f; ubo_data.color_peak[2] = 0.8f;
+    } else {
+        ubo_data.color_base[0] = 0.95f; ubo_data.color_base[1] = 0.65f; ubo_data.color_base[2] = 0.25f;
+        ubo_data.color_peak[0] = 0.35f; ubo_data.color_peak[1] = 0.85f; ubo_data.color_peak[2] = 1.0f;
+    }
+    ubo_data.color_base[3] = 1.0f;
     ubo_data.color_peak[3] = 0.0f;
+
+    // Camera and Laser entity positions passed to GPU Compute Shader
+    ubo_data.cam_pos[0] = cam_pos.x;
+    ubo_data.cam_pos[1] = cam_pos.y;
+    ubo_data.cam_pos[2] = cam_pos.z;
+    ubo_data.cam_pos[3] = semantic.melodic_mids;
+
+    ubo_data.laser_pos[0] = laser_pos.x;
+    ubo_data.laser_pos[1] = laser_pos.y;
+    ubo_data.laser_pos[2] = laser_pos.z;
+    ubo_data.laser_pos[3] = semantic.treble_sparkle;
 
     glBindBuffer(GL_UNIFORM_BUFFER, ubo_);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(AudioPhysicsUbo), &ubo_data);
@@ -163,6 +184,7 @@ void ParticleSystem::render(const glm::mat4& view_proj) {
     render_shader_.set_mat4("u_view_proj", view_proj);
     glBindBufferBase(GL_UNIFORM_BUFFER, 1, ubo_);
 
+    glEnable(GL_PROGRAM_POINT_SIZE);
     glBindVertexArray(vao_);
     glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(particle_count_));
     glBindVertexArray(0);

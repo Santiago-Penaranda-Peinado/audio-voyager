@@ -84,28 +84,39 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
             ImGui::Separator();
         }
 
-        // 2. AGC Auto-Gain Calibration & Topology
-        if (ImGui::CollapsingHeader("🧠 PROCEDURAL AGC TOPOLOGY", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Text("Detected Tempo: %.1f BPM (Conf: %.0f%%)", semantic.bpm, semantic.bpm_confidence * 100.0f);
+        // 2. The Mind (Machine Learning Biome Inception at 1.0 Hz)
+        if (ImGui::CollapsingHeader("🧠 THE MIND (ML SEMANTIC BIOMES @ 1Hz)", ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (semantic.is_silent) {
+                ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "Mode: 🌌 QUIESCENCE / ZEN RESTING STATE");
+            } else {
+                ImGui::Text("Detected Tempo: %.1f BPM (Conf: %.0f%%)", semantic.bpm, semantic.bpm_confidence * 100.0f);
+            }
+            ImGui::Text("Affective Coordinates: Valence %.2f | Arousal %.2f", semantic.valence, semantic.arousal);
             
-            ImGui::Text("Auto-Gain Control (Dynamic 0.0 to 1.0):");
-            ImGui::ProgressBar(semantic.norm_dissonance, ImVec2(-1, 0), "Dissonance (Folding / Sharpness)");
-            ImGui::ProgressBar(semantic.norm_energy, ImVec2(-1, 0), "Acoustic Energy (Emissivity / Scale)");
-            ImGui::ProgressBar(semantic.norm_centroid, ImVec2(-1, 0), "Spectral Centroid (HSV Hue)");
-            ImGui::ProgressBar(semantic.norm_sub_bass, ImVec2(-1, 0), "Sub-Bass (Cavity Dilation)");
-            ImGui::ProgressBar(semantic.norm_treble, ImVec2(-1, 0), "High-Treble (Glitch Slicing)");
+            ImGui::Text("Continuous Biome Barycentric Weights:");
+            ImGui::ProgressBar(semantic.weight_liquid,  ImVec2(-1, 0), "SDF_Liquid  (Ocean / Harmonious)");
+            ImGui::ProgressBar(semantic.weight_crystal, ImVec2(-1, 0), "SDF_Crystal (Monolith / Tension)");
+            ImGui::ProgressBar(semantic.weight_cyber,   ImVec2(-1, 0), "SDF_Cyber   (Matrix / Electronic)");
+            ImGui::Separator();
+        }
+
+        // 3. The Muscle (Multi-Band Physical Real-Time DSP at 144 Hz)
+        if (ImGui::CollapsingHeader("⚡ THE MUSCLE (DSP EXCITATION @ 144Hz)", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::ProgressBar(semantic.elastic_dilation, ImVec2(-1, 0), "Sub-Bass Dilation / Ocean Waves (20-80Hz)");
+            ImGui::ProgressBar(semantic.melodic_mids,     ImVec2(-1, 0), "Melodic Vocal Resonance (300-3000Hz)");
+            ImGui::ProgressBar(semantic.treble_sparkle,   ImVec2(-1, 0), "Treble Stardust Sparkle (8-20kHz)");
+            ImGui::ProgressBar(semantic.surface_ripple,   ImVec2(-1, 0), "Surface Shockwave Ripple (Onsets)");
+            ImGui::ProgressBar(semantic.emission_pulse / 2.0f, ImVec2(-1, 0), "Volumetric HDR Emission (RMS)");
 
             if (semantic.is_onset) {
-                ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.3f, 1.0f), "💥 TRANSIENT DROP DETECTED! 💥");
+                ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.4f, 1.0f), "💥 TRANSIENT DROP DETECTED! 💥");
             }
             ImGui::Separator();
         }
 
-        // 3. Autonomous Art Director
+        // 4. Autonomous Kinematics
         if (ImGui::CollapsingHeader("🚀 AUTONOMOUS ART DIRECTOR", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Text("Warp Flight Speed: %.2f m/s", semantic.speed_forward);
-            ImGui::ProgressBar(semantic.topology_folding, ImVec2(-1, 0), "KIFS Space Folding");
-            ImGui::ProgressBar(semantic.glitch_intensity, ImVec2(-1, 0), "Shockwave Space Ripple");
+            ImGui::Text("Cruising Flight Speed: %.2f m/s", semantic.speed_forward);
             ImGui::Separator();
         }
 

@@ -1,87 +1,121 @@
-# 🌌 AUDIO-VOYAGER // Autonomous Procedural Gyroid SDF & AGC Audio Engine
+# AUDIO-VOYAGER
 
-**audio-voyager** es una experiencia inmersiva hipnótica autónoma guiada en tiempo real por el audio de tu sistema. El programa no utiliza preajustes estáticos ni temas scripteados: es un viaje cinematográfico continuo a través de geometrías de **Gyroid infinito** y fractales **KIFS** generados procedimentalmente en GPU mediante **Signed Distance Fields (SDF Raymarching)**, un sistema de **Auto-Gain Control (AGC)** dinámico y mapeo de color continuo **HSV**.
+## Autonomous Continuous SDF Raymarching & Real-Time Spectral Machine Learning Engine
 
----
-
-## ⚡ Arquitectura Matemática (Fase 5 - Versión Definitiva)
-
-### 1. Auto-Gain Control Dinámico (`AutoGainControl` en `SemanticBrain.cpp`)
-- **Ventana Deslizante de Calibración (~12s)**: Rastrea en vivo los picos y pisos de ruido para:
-  - `Dissonance` (Aspereza armónica de Sethares)
-  - `SpectralCentroid` (Centro de masa del espectro)
-  - `RMS / Energy` (Masa acústica cinética)
-  - `Sub-Bass` y `High-Treble`
-- **Rango Completo $0.0 \to 1.0$ Garantizado**: Toda canción o fuente de audio, sin importar su volumen base de masterización, alcanza de forma dinámica y fluida el rango completo $[0.0, 1.0]$ en sus momentos más intensos.
-
-### 2. Espacio Procedural Infinito (Cero Túneles Fijos - `shaders/raymarching.frag`)
-- **Topología de Gyroid de Superficie Mínima**:
-  $$\text{Gyroid}(p) = |\sin(p.x) \cos(p.y) + \sin(p.y) \cos(p.z) + \sin(p.z) \cos(p.x)| - \text{thickness}$$
-- **Plegado Espacial KIFS Guiado por Disonancia**:
-  - *Baja Disonancia / Armonía*: Superficies mínimas fluidas, líquidas y elásticas.
-  - *Alta Disonancia / Caos*: Plegados fractales iterativos con bordes duros y cristales afilados.
-- **Modulación de Escala por Energía / Onsets**:
-  El espacio se contrae y dilata rítmicamente con los pulsos de sub-graves y los impactos de percusión (*drops*).
-
-### 3. Teoría del Color Sinestésica Continua (Mapeo HSV $\to$ RGB)
-- **Hue (Tono)**: Mapeado al `SpectralCentroid` normalizado.
-  - Frecuencias graves $\to$ Rojos, naranjas y oros cálidos.
-  - Frecuencias medias $\to$ Verdes esmeralda y cian.
-  - Frecuencias agudas $\to$ Azules eléctricos, violetas y magentas.
-- **Saturación**: La alta disonancia desatura el entorno hacia cromo blanco y negro de alto contraste.
-- **Emisividad / Brillo**: Modulado directamente por la energía RMS y los Onsets para alimentar el Bloom HDR.
+`audio-voyager` is a native, high-performance C++20 audio-reactive generative engine designed for real-time visualization through Signed Distance Field (SDF) raymarching, embedded neural spectral inference, and modern OpenGL 4.5 Core Profile graphics.
 
 ---
 
-## 🚀 Cómo Ejecutar (Arranque Zero-Friction)
+## 1. Architectural Overview
 
-### Opción 1: Ejecutar el Binario Nativo en Windows
+The engine operates on a strict temporal and structural decoupling principle, dividing analysis and rendering into two complementary domains:
 
-Simplemente haz doble clic en:
-```text
-audio_voyager.exe
 ```
-O ejecútalo desde tu terminal de **PowerShell**:
+                               +---------------------------------------+
+                               |          Audio Input Stream           |
+                               |    (WASAPI Loopback / ALSA / PCM)     |
+                               +-------------------+-------------------+
+                                                   |
+                                                   v
+                         +-------------------------+-------------------------+
+                         |                                                   |
+                         v                                                   v
+           +---------------------------+                       +---------------------------+
+           |         THE MIND          |                       |        THE MUSCLE         |
+           | Low-Frequency Domain (~1Hz) |                     | High-Frequency Domain (144Hz) |
+           |  Embedded Neural MLP      |                       |    Real-Time DSP Worker   |
+           +-------------+-------------+                       +-------------+-------------+
+                         |                                                   |
+                         |  Barycentric Biome Weights                        |  Kinetic Excitation
+                         |  (Liquid / Crystal / Cyber)                       |  (Dilation, Shockwaves,
+                         |  Affective Coordinates                            |   Volumetric HDR Pulse)
+                         |                                                   |
+                         +-------------------------+-------------------------+
+                                                   |
+                                                   v
+                               +---------------------------------------+
+                               |     Uniform Buffer Object (std140)    |
+                               +-------------------+-------------------+
+                                                   |
+                                                   v
+                               +---------------------------------------+
+                               |       GPU SDF Raymarching Core        |
+                               |   Trilateral Barycentric Biomes       |
+                               |      HDR Dual-Pass Optical Bloom      |
+                               |    ACES Filmic Tone Mapping (1080p)   |
+                               +---------------------------------------+
+```
+
+---
+
+## 2. Core Subsystems
+
+### 2.1 The Mind: Embedded Neural Semantic Classifier (`SemanticClassifierML`)
+- **Feature Extraction**: 28-dimensional spectral vector comprising a 24-band Mel-frequency filterbank energy distribution, spectral centroid normalized ratio, inharmonicity/dissonance index, and transient onset novelty density.
+- **Inference Model**: Multi-Layer Perceptron (MLP) with Gaussian Error Linear Unit (GELU) non-linearities and numerically stabilized Softmax normalization:
+  $$\mathbf{w}_{\text{target}} = \text{Softmax}\left(\mathbf{W}_3 \cdot \text{GELU}(\mathbf{W}_2 \cdot \text{GELU}(\mathbf{W}_1 \mathbf{x} + \mathbf{b}_1) + \mathbf{b}_2) + \mathbf{b}_3\right)$$
+- **Temporal Integration**: Evaluated at $1.0\,\text{Hz}$ and integrated through a higher-order leaky integrator ($\tau \approx 4.0\,\text{s}$), ensuring structural biome transitions occur strictly across musical phrase boundaries rather than frame-by-frame fluctuations.
+
+### 2.2 The Muscle: High-Frequency Physical DSP Pipeline
+- **Stream A (Fast-Path Reactivity)**: Dual-stream ring buffer processing 256 PCM oscilloscope samples and an 8-band Fast-FFT filterbank with latency $< 0.03\,\text{ms}$.
+- **Stream B (Physical Forces)**: Essentia C++ and native C++20 DSP worker evaluating Sethares dissonance, High-Frequency Content (HFC) onset novelty, and RMS acoustic energy.
+- **Physical Excitation Mapping**:
+  - **Sub-Bass Energy ($20-120\,\text{Hz}$)**: Modulates the cavern boundary radius through an elastic dilation function $\delta(r) = r_0 + \kappa \cdot E_{\text{bass}}$.
+  - **Onset Transients**: Generates a decaying sinusoidal shockwave perturbation over surface distance evaluations.
+  - **RMS Kinetic Mass**: Directly drives volumetric emission density and specular highlight intensity.
+
+### 2.3 GPU SDF Raymarching Architecture (`shaders/raymarching.frag`)
+The geometry is computed entirely in screen-space via three structurally distinct signed distance functions:
+
+1. **`SDF_Liquid` (Organic / Harmonious State)**:
+   - Undulating minimal surface cavity combined with viscous metaball configurations and broad polynomial smooth minimum operations:
+     $$\text{smin}(a, b, k) = \text{mix}(b, a, h) - k \cdot h \cdot (1 - h), \quad h = \text{clamp}\left(0.5 + 0.5 \frac{b - a}{k}, 0.0, 1.0\right)$$
+2. **`SDF_Crystal` (Tension / Distortion State)**:
+   - Faceted octagonal prism corridors, quartz monoliths, and Kaleidoscopic Iterated Function Systems (KIFS) utilizing planar clipping operations (`max`, `abs`).
+3. **`SDF_Cyber` (Electronic / Rhythmic State)**:
+   - Chamfered rectangular conduits, periodic gate ring superstructures ($z \pmod{5.0}$), and longitudinal neon energy rails.
+
+- **Barycentric Trilateral Blending**:
+  $$d_{\text{world}}(p) = w_{\text{liquid}} \cdot d_{\text{liquid}}(p) + w_{\text{crystal}} \cdot d_{\text{crystal}}(p) + w_{\text{cyber}} \cdot d_{\text{cyber}}(p)$$
+
+---
+
+## 3. Building and Execution
+
+### 3.1 Precompiled Standalone Distribution (Windows 64-bit)
+The portable package is located in `dist/audio-voyager-windows/` and includes static dependencies.
+
+To launch:
 ```powershell
 .\audio_voyager.exe
 ```
-*(El programa iniciará de inmediato en modo cinematográfico autónomo, escuchando lo que suena en tu PC).*
 
----
-
-### Opción 2: Carpeta Portable para Llevar en una USB
-
-Ubicada en:
-```text
-dist\audio-voyager-windows\
-```
-Contenido de la carpeta portable:
-- `audio_voyager.exe` (Binario autónomo de 64 bits con enlace estático)
-- `run_audio_voyager.bat` (Lanzador con un solo clic)
-- `shaders/` (Todos los shaders de Gyroid SDF, Bloom y Post-Procesado)
-
----
-
-### Opción 3: Modo Generador Sintético (Pruebas de Laboratorio)
-
+For synthetic laboratory test signals:
 ```powershell
 .\audio_voyager.exe --synthetic
 ```
 
----
-
-## 🎮 Controles y Atajos de Teclado
-
-| Tecla | Acción |
-| :--- | :--- |
-| **`F11`** | Conmutar **Pantalla Completa sin Bordes (Borderless Fullscreen)** |
-| **`F12`** | Mostrar / Ocultar el **Panel Secreto de Depuración (Dear ImGui HUD)** con métricas AGC |
-| **`ESC`** | Salir limpiamente |
-
----
-
-## 🔄 Recompilación Portable con Docker
-
+### 3.2 Compilation from Source (Docker / MinGW Toolchain)
 ```powershell
 docker compose run --rm audio-voyager bash /workspace/scripts/build_windows_exe.sh
 ```
+
+---
+
+## 4. Keyboard Controls
+
+| Key | Description |
+| :--- | :--- |
+| **`F11`** | Toggle Borderless Fullscreen mode |
+| **`F12`** | Toggle Real-Time Semantic Telemetry Overlay (Dear ImGui) |
+| **`ESC`** | Graceful engine shutdown |
+
+---
+
+## 5. Technical Specifications
+
+- **Language Standard**: ISO C++20 (`-std=c++20`).
+- **Graphics API**: OpenGL 4.5 Core Profile (`GLSL 450 core`).
+- **Framebuffer Architecture**: Multi-target HDR (`GL_RGBA16F`), dual-pass Gaussian Bloom downsampling, ACES Filmic Tone Mapping.
+- **Audio Thread Safety**: Wait-free, lock-free SPSC circular ring buffers.
+- **Target Performance**: $140+\,\text{FPS}$ at $1920 \times 1080$ on modern GPU hardware.

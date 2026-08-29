@@ -153,11 +153,13 @@ set(SOURCES
     src/audio/stream_a_raw.cpp
     src/audio/stream_b_physics.cpp
     src/engine/audio_engine.cpp
+    src/brain/semantic_classifier_ml.cpp
     src/brain/semantic_brain.cpp
     src/director/autonomous_art_director.cpp
     src/graphics/gl_context.cpp
     src/graphics/fbo.cpp
     src/graphics/shader.cpp
+    src/graphics/particle_system.cpp
     src/graphics/oscilloscope_renderer.cpp
     src/graphics/postprocess.cpp
     src/graphics/imgui_overlay.cpp
@@ -173,11 +175,13 @@ set(HEADERS
     src/audio/stream_a_raw.hpp
     src/audio/stream_b_physics.hpp
     src/engine/audio_engine.hpp
+    src/brain/semantic_classifier_ml.hpp
     src/brain/semantic_brain.hpp
     src/director/autonomous_art_director.hpp
     src/graphics/gl_context.hpp
     src/graphics/fbo.hpp
     src/graphics/shader.hpp
+    src/graphics/particle_system.hpp
     src/graphics/oscilloscope_renderer.hpp
     src/graphics/postprocess.hpp
     src/graphics/imgui_overlay.hpp

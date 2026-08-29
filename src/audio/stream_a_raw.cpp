@@ -1,3 +1,4 @@
+#define _USE_MATH_DEFINES
 #include "audio/stream_a_raw.hpp"
 #include <cmath>
 #include <chrono>

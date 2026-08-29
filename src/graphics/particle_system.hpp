@@ -21,12 +21,14 @@ struct alignas(16) AudioPhysicsUbo {
     float physics_scales[4]; // x: gravity_scale, y: vorticity_scale, z: shockwave_scale, w: attraction_scale
     float color_base[4];     // rgb: base resting color, w: point_size_scale
     float color_peak[4];     // rgb: peak high energy color, w: spare
+    float cam_pos[4];        // xyz: camera pos, w: melodic_mids
+    float laser_pos[4];      // xyz: laser entity pos, w: treble_sparkle
 };
 
 struct LeakyIntegrator {
     float value{0.0f};
-    float attack_rate{40.0f}; // Instant attack response (transients/shockwaves)
-    float decay_rate{4.5f};   // Viscous organic decay (fluid relaxation)
+    float attack_rate{40.0f};
+    float decay_rate{4.5f};
 
     float update(float target, float dt, float current_decay_rate) noexcept {
         float rate = (target > value) ? attack_rate : current_decay_rate;
@@ -46,7 +48,11 @@ public:
     ParticleSystem& operator=(const ParticleSystem&) = delete;
 
     bool init();
-    void update(float dt, float total_time, const core::PhysicsAudioState& audio_state, const core::PhysicsTuners& tuners);
+    void update(float dt, float total_time, 
+                const core::PhysicsAudioState& audio_state, 
+                const core::AudioSemanticVector& semantic, 
+                const glm::vec3& cam_pos,
+                const glm::vec3& laser_pos);
     void render(const glm::mat4& view_proj);
 
     [[nodiscard]] size_t get_particle_count() const noexcept { return particle_count_; }
@@ -63,7 +69,6 @@ private:
     Shader compute_shader_;
     Shader render_shader_;
 
-    // Leaky integrators for organic physical response
     LeakyIntegrator smooth_centroid_{0.0f, 30.0f, 3.5f};
     LeakyIntegrator smooth_dissonance_{0.0f, 45.0f, 5.0f};
     LeakyIntegrator smooth_onset_{0.0f, 80.0f, 12.0f};

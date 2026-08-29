@@ -1,4 +1,6 @@
+#define _USE_MATH_DEFINES
 #include "audio/stream_b_physics.hpp"
+#include "core/types.hpp"
 #include <cmath>
 #include <chrono>
 #include <algorithm>

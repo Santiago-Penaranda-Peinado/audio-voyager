@@ -1,9 +1,11 @@
+#define _USE_MATH_DEFINES
 #include "audio/audio_capture.hpp"
 #include "third_party/miniaudio.h"
 #include <iostream>
 #include <cmath>
 #include <chrono>
 #include <algorithm>
+#include <thread>
 
 namespace audio_voyager::audio {
 

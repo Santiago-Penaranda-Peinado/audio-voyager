@@ -18,6 +18,8 @@ layout(std140, binding = 1) uniform AudioPhysicsUniforms {
     vec4 u_physics_scales; // x: gravity_scale, y: vorticity_scale, z: shockwave_scale, w: attraction_scale
     vec4 u_color_base;     // rgb: base color, w: point_size_scale
     vec4 u_color_peak;     // rgb: peak color, w: spare
+    vec4 u_cam_pos;        // xyz: camera pos, w: melodic_mids
+    vec4 u_laser_pos;      // xyz: laser entity pos, w: treble_sparkle
 };
 
 // =============================================================================
@@ -124,6 +126,10 @@ void main() {
     vec3 vel = p.vel_mass.xyz;
     float mass = p.vel_mass.w;
 
+    vec3 cam_pos = u_cam_pos.xyz;
+    vec3 laser_pos = u_laser_pos.xyz;
+    float dist_to_cam = length(pos - cam_pos);
+
     float spec_centroid = u_audio_physics.x;
     float dissonance = u_audio_physics.y;
     float onset = u_audio_physics.z;
@@ -137,47 +143,48 @@ void main() {
     float attr_mult = u_physics_scales.w;
     float base_damping = u_sim_params.w;
 
-    // 1. Spectral Centroid: Directional Gravity / Buoyancy Force
-    vec3 gravity = vec3(0.0, (spec_centroid - 0.42) * grav_mult, 0.0);
+    // 1. Directional Buoyancy / Updraft Force
+    vec3 gravity = vec3(0.0, (spec_centroid - 0.40) * grav_mult, 0.0);
 
-    // 2. Sethares Dissonance: 3D Fluid Vorticity & Curl Noise
-    vec3 noise_pos = pos * 0.15 + vec3(time * 0.1, time * 0.12, time * 0.08);
+    // 2. Vorticity & 3D Curl Noise Swirl
+    vec3 noise_pos = (pos - cam_pos) * 0.12 + vec3(time * 0.08, time * 0.10, time * 0.06);
     vec3 curl = computeCurl(noise_pos);
-    vec3 vorticity_force = curl * (dissonance * vort_mult + 0.5);
+    vec3 vorticity_force = curl * (dissonance * vort_mult * 2.5 + 0.8);
 
-    // 3. Onset Detection: Kinetic Shockwave Explosion
+    // 3. Kinetic Shockwave Burst from Laser Entity
     vec3 shockwave_force = vec3(0.0);
-    float dist = length(pos);
-    if (is_onset > 0.5 || onset > 0.4) {
-        vec3 dir = (dist > 0.01) ? normalize(pos) : vec3(0.0, 1.0, 0.0);
-        float falloff = 1.0 / (dist * 0.4 + 0.3);
-        shockwave_force = dir * (onset * shock_mult * falloff);
+    vec3 to_laser = pos - laser_pos;
+    float dist_laser = length(to_laser);
+    if (is_onset > 0.5 || onset > 0.35) {
+        vec3 dir = (dist_laser > 0.01) ? normalize(to_laser) : vec3(0.0, 1.0, 0.0);
+        float falloff = 1.0 / (dist_laser * 0.3 + 0.4);
+        shockwave_force = dir * (onset * shock_mult * falloff * 2.0);
         life = 1.0;
     }
 
-    // 4. Harmonic Core Centripetal Attraction (Sub-Bass + RMS)
-    vec3 attraction_force = -pos * (0.8 + sub_bass * attr_mult + rms * 2.0);
+    // 4. Centripetal Attraction towards Laser Ribbon Entity
+    vec3 attraction_force = -to_laser * (0.6 + sub_bass * attr_mult + rms * 1.5);
 
-    // 5. Total Acceleration
+    // 5. Total Acceleration & Integration
     vec3 total_acc = gravity + vorticity_force + shockwave_force + attraction_force;
 
-    // Viscous fluid drag
-    float dynamic_damping = base_damping - (1.0 - rms) * 0.05;
+    float dynamic_damping = base_damping - (1.0 - rms) * 0.03;
     vel += total_acc * (dt / max(mass, 0.1));
     vel *= dynamic_damping;
     pos += vel * dt;
 
-    life -= dt * (0.15 + rms * 0.2);
+    life -= dt * (0.12 + rms * 0.18);
 
-    // 6. Boundary / Respawn Condition
-    if (life <= 0.0 || dist > 35.0 || isnan(pos.x)) {
+    // 6. Camera-Centric Infinite Respawn (Never leaves particles behind in flight)
+    if (life <= 0.0 || dist_to_cam > 32.0 || isnan(pos.x)) {
         float seed = float(id) + time * 100.0;
         float theta = hash(uint(seed)) * 6.2831853;
         float phi = (hash(uint(seed + 1.0)) - 0.5) * 3.14159;
-        float r = 0.5 + hash(uint(seed + 2.0)) * 2.5;
+        float r = 1.5 + hash(uint(seed + 2.0)) * 14.0;
 
-        pos = vec3(r * cos(theta) * cos(phi), r * sin(phi), r * sin(theta) * cos(phi));
-        vel = cross(normalize(pos), vec3(0.0, 1.0, 0.0)) * (2.0 + sub_bass * 4.0);
+        vec3 offset = vec3(r * cos(theta) * cos(phi), r * sin(phi) * 0.6, r * sin(theta) * cos(phi));
+        pos = cam_pos + offset + normalize(laser_pos - cam_pos) * (hash(uint(seed + 5.0)) * 5.0);
+        vel = cross(normalize(offset + vec3(0.001)), vec3(0.0, 1.0, 0.0)) * (1.2 + sub_bass * 3.0);
         life = 0.8 + hash(uint(seed + 3.0)) * 0.4;
         mass = 0.5 + hash(uint(seed + 4.0)) * 0.8;
     }
