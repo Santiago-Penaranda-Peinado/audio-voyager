@@ -1,0 +1,21 @@
+# ninja log v5
+61	117	1787962478599438500	glm-populate-prefix/src/glm-populate-stamp/glm-populate-mkdir	2ba760ff8958b499
+61	117	1787962478599438500	/workspace/build_cross/_deps/glm-subbuild/glm-populate-prefix/src/glm-populate-stamp/glm-populate-mkdir	2ba760ff8958b499
+125	18996	1787962497477128500	glm-populate-prefix/src/glm-populate-stamp/glm-populate-download	264be8f4129b33cb
+125	18996	1787962497477128500	/workspace/build_cross/_deps/glm-subbuild/glm-populate-prefix/src/glm-populate-stamp/glm-populate-download	264be8f4129b33cb
+19001	19221	0	glm-populate-prefix/src/glm-populate-stamp/glm-populate-update	4f6610ead8433994
+19001	19221	0	/workspace/build_cross/_deps/glm-subbuild/glm-populate-prefix/src/glm-populate-stamp/glm-populate-update	4f6610ead8433994
+19225	19253	1787962497734881700	glm-populate-prefix/src/glm-populate-stamp/glm-populate-patch	8d0f258a75dbca0a
+19225	19253	1787962497734881700	/workspace/build_cross/_deps/glm-subbuild/glm-populate-prefix/src/glm-populate-stamp/glm-populate-patch	8d0f258a75dbca0a
+19258	19288	1787962497769703800	glm-populate-prefix/src/glm-populate-stamp/glm-populate-configure	a81eaa0ad2d273eb
+19258	19288	1787962497769703800	/workspace/build_cross/_deps/glm-subbuild/glm-populate-prefix/src/glm-populate-stamp/glm-populate-configure	a81eaa0ad2d273eb
+19293	19321	1787962497803038400	glm-populate-prefix/src/glm-populate-stamp/glm-populate-build	ccaa8c5723e8398
+19293	19321	1787962497803038400	/workspace/build_cross/_deps/glm-subbuild/glm-populate-prefix/src/glm-populate-stamp/glm-populate-build	ccaa8c5723e8398
+19326	19355	1787962497837191100	glm-populate-prefix/src/glm-populate-stamp/glm-populate-install	3c71f004677aeea6
+19326	19355	1787962497837191100	/workspace/build_cross/_deps/glm-subbuild/glm-populate-prefix/src/glm-populate-stamp/glm-populate-install	3c71f004677aeea6
+19360	19387	1787962497869343200	glm-populate-prefix/src/glm-populate-stamp/glm-populate-test	fce72a3fd9fe8fd
+19360	19387	1787962497869343200	/workspace/build_cross/_deps/glm-subbuild/glm-populate-prefix/src/glm-populate-stamp/glm-populate-test	fce72a3fd9fe8fd
+19393	19435	1787962497916981100	CMakeFiles/glm-populate-complete	1c82e117d675a68e
+19393	19435	1787962497916981100	glm-populate-prefix/src/glm-populate-stamp/glm-populate-done	1c82e117d675a68e
+19393	19435	1787962497916981100	/workspace/build_cross/_deps/glm-subbuild/CMakeFiles/glm-populate-complete	1c82e117d675a68e
+19393	19435	1787962497916981100	/workspace/build_cross/_deps/glm-subbuild/glm-populate-prefix/src/glm-populate-stamp/glm-populate-done	1c82e117d675a68e

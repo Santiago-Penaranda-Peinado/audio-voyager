@@ -1,0 +1,296 @@
+[StreamBPhysics] High-Performance Native C++20 DSP Engine active (Sethares Dissonance + Spectral Centroid + HFC Onsets).
+[AudioEngine] Starting Dual-Stream Audio Pipeline...
+[AudioCapture] Successfully connected to system audio backend: WASAPI (Loopback) @ 48000Hz, 2ch.
+[AudioEngine] Pipeline active. Zero-latency stream processing running.
+[GLContext] OpenGL Context Initialized Successfully:
+            Vendor:   NVIDIA Corporation
+            Renderer: NVIDIA GeForce RTX 5060/PCIe/SSE2
+            Version:  4.5.0 NVIDIA 596.21
+            GLSL:     4.50 NVIDIA
+[Renderer AUDIT] Initializing renderer at 1920x1080...
+[Framebuffer AUDIT] FBO created successfully: 1920x1080 | Format: GL_RGBA16F (HDR) | Status: GL_FRAMEBUFFER_COMPLETE (0x8cd5)
+[Framebuffer AUDIT] FBO created successfully: 960x540 | Format: GL_RGBA16F (HDR) | Status: GL_FRAMEBUFFER_COMPLETE (0x8cd5)
+[Framebuffer AUDIT] FBO created successfully: 960x540 | Format: GL_RGBA16F (HDR) | Status: GL_FRAMEBUFFER_COMPLETE (0x8cd5)
+[PostProcessPipeline] HDR Optical Post-Processing Pipeline Ready.
+[Main] No active graphical display found (X11/Wayland).
+       Activating real-time interactive terminal dashboard!
+[?25l[2J[H[H[1;36m================================================================================[0m
+[1;37m   AUDIO-VOYAGER // CONTINUOUS SDF RAYMARCHING & SEMANTIC ML TELEMETRY          [0m
+[1;36m================================================================================[0m
+ [1;33mPipeline Status:[0m [1;32mSYSTEM AUDIO LOOPBACK (ACTIVE)[0m | Rate: [1;37m48000 Hz[0m | UI FPS: [1;37m60.0[0m
+ [1;33mFrame Index:[0m            1 | Fast Path Latency: [1;32m0.02 ms[0m | DSP Worker: [1;32m0.0 us[0m
+[0;34m--------------------------------------------------------------------------------[0m
+[1;32m[ FLUJO A: REACTIVIDAD CRUDA (Osciloscopio & Fast-FFT 8 Bandas) ][0m
+   [1mOscilloscope Waveform (Real-Time 256 PCM):[0m
+      |                                                      |
+      |                                                      |
+      | ++++++++++++++++++++++++++++++++++++++++++++++++++++ |
+      |                                                      |
+      |                                                      |
+   [1mFast-FFT Spectrum Frequency Bands:[0m
+    Sub-Bass (20-60Hz) : [                          ]   0%
+    Bass (60-250Hz)    : [                          ]   0%
+    Low-Mid (250-500Hz): [                          ]   0%
+    Mid (500-2kHz)     : [                          ]   0%
+    High-Mid (2k-4kHz) : [                          ]   0%
+    Presence (4k-6kHz) : [                          ]   0%
+    Brilliance (6k-12k): [                          ]   0%
+    Air (12k-20kHz)    : [                          ]   0%
+    Peak Amplitude: [                ] 0.00 | RMS Volume: [                ] 0.00
+[0;34m--------------------------------------------------------------------------------[0m
+[1;35m[ FLUJO B: FÍSICAS DEL ALMA (Essentia C++ Semantic Physics Forces) ][0m
+   [1mSpectral Centroid (Brillo y Centro de Masa):[0m
+    Freq: [1;37m    0.0 Hz[0m  [                        ]
+   [1mSethares Dissonance (Aspereza y Vorticidad 3D):[0m
+    Diss: [1;37m  0.000[0m      [                        ]
+   [1mOnset Novelty (Ondas de Choque Cinéticas):[0m
+    Strength: [1;37m   0.00[0m [                        ]                           
+   [1mMasa Cinética Dinámica & RMS:[0m
+    Energía:  [1;37m   0.00[0m [                        ]
+[1;36m================================================================================[0m
+ [90mPresiona Ctrl+C para detener la simulación.[0m
+[H[1;36m================================================================================[0m
+[1;37m   AUDIO-VOYAGER // CONTINUOUS SDF RAYMARCHING & SEMANTIC ML TELEMETRY          [0m
+[1;36m================================================================================[0m
+ [1;33mPipeline Status:[0m [1;32mSYSTEM AUDIO LOOPBACK (ACTIVE)[0m | Rate: [1;37m48000 Hz[0m | UI FPS: [1;37m60.0[0m
+ [1;33mFrame Index:[0m            2 | Fast Path Latency: [1;32m0.06 ms[0m | DSP Worker: [1;32m0.0 us[0m
+[0;34m--------------------------------------------------------------------------------[0m
+[1;32m[ FLUJO A: REACTIVIDAD CRUDA (Osciloscopio & Fast-FFT 8 Bandas) ][0m
+   [1mOscilloscope Waveform (Real-Time 256 PCM):[0m
+      |                                                      |
+      |                                                      |
+      | ++++++++++++++++++++++++++++++++++++++++++++++++++++ |
+      |                                                      |
+      |                                                      |
+   [1mFast-FFT Spectrum Frequency Bands:[0m
+    Sub-Bass (20-60Hz) : [                          ]   0%
+    Bass (60-250Hz)    : [                          ]   0%
+    Low-Mid (250-500Hz): [                          ]   0%
+    Mid (500-2kHz)     : [                          ]   0%
+    High-Mid (2k-4kHz) : [                          ]   0%
+    Presence (4k-6kHz) : [                          ]   0%
+    Brilliance (6k-12k): [                          ]   0%
+    Air (12k-20kHz)    : [                          ]   0%
+    Peak Amplitude: [                ] 0.00 | RMS Volume: [                ] 0.00
+[0;34m--------------------------------------------------------------------------------[0m
+[1;35m[ FLUJO B: FÍSICAS DEL ALMA (Essentia C++ Semantic Physics Forces) ][0m
+   [1mSpectral Centroid (Brillo y Centro de Masa):[0m
+    Freq: [1;37m    0.0 Hz[0m  [                        ]
+   [1mSethares Dissonance (Aspereza y Vorticidad 3D):[0m
+    Diss: [1;37m  0.000[0m      [                        ]
+   [1mOnset Novelty (Ondas de Choque Cinéticas):[0m
+    Strength: [1;37m   0.00[0m [                        ]                           
+   [1mMasa Cinética Dinámica & RMS:[0m
+    Energía:  [1;37m   0.00[0m [                        ]
+[1;36m================================================================================[0m
+ [90mPresiona Ctrl+C para detener la simulación.[0m
+[H[1;36m================================================================================[0m
+[1;37m   AUDIO-VOYAGER // CONTINUOUS SDF RAYMARCHING & SEMANTIC ML TELEMETRY          [0m
+[1;36m================================================================================[0m
+ [1;33mPipeline Status:[0m [1;32mSYSTEM AUDIO LOOPBACK (ACTIVE)[0m | Rate: [1;37m48000 Hz[0m | UI FPS: [1;37m60.0[0m
+ [1;33mFrame Index:[0m            3 | Fast Path Latency: [1;32m0.04 ms[0m | DSP Worker: [1;32m0.0 us[0m
+[0;34m--------------------------------------------------------------------------------[0m
+[1;32m[ FLUJO A: REACTIVIDAD CRUDA (Osciloscopio & Fast-FFT 8 Bandas) ][0m
+   [1mOscilloscope Waveform (Real-Time 256 PCM):[0m
+      |                                                      |
+      |                                                      |
+      | ++++++++++++++++++++++++++++++++++++++++++++++++++++ |
+      |                                                      |
+      |                                                      |
+   [1mFast-FFT Spectrum Frequency Bands:[0m
+    Sub-Bass (20-60Hz) : [                          ]   0%
+    Bass (60-250Hz)    : [                          ]   0%
+    Low-Mid (250-500Hz): [                          ]   0%
+    Mid (500-2kHz)     : [                          ]   0%
+    High-Mid (2k-4kHz) : [                          ]   0%
+    Presence (4k-6kHz) : [                          ]   0%
+    Brilliance (6k-12k): [                          ]   0%
+    Air (12k-20kHz)    : [                          ]   0%
+    Peak Amplitude: [                ] 0.00 | RMS Volume: [                ] 0.00
+[0;34m--------------------------------------------------------------------------------[0m
+[1;35m[ FLUJO B: FÍSICAS DEL ALMA (Essentia C++ Semantic Physics Forces) ][0m
+   [1mSpectral Centroid (Brillo y Centro de Masa):[0m
+    Freq: [1;37m    0.0 Hz[0m  [                        ]
+   [1mSethares Dissonance (Aspereza y Vorticidad 3D):[0m
+    Diss: [1;37m  0.000[0m      [                        ]
+   [1mOnset Novelty (Ondas de Choque Cinéticas):[0m
+    Strength: [1;37m   0.00[0m [                        ]                           
+   [1mMasa Cinética Dinámica & RMS:[0m
+    Energía:  [1;37m   0.00[0m [                        ]
+[1;36m================================================================================[0m
+ [90mPresiona Ctrl+C para detener la simulación.[0m
+[H[1;36m================================================================================[0m
+[1;37m   AUDIO-VOYAGER // CONTINUOUS SDF RAYMARCHING & SEMANTIC ML TELEMETRY          [0m
+[1;36m================================================================================[0m
+ [1;33mPipeline Status:[0m [1;32mSYSTEM AUDIO LOOPBACK (ACTIVE)[0m | Rate: [1;37m48000 Hz[0m | UI FPS: [1;37m60.0[0m
+ [1;33mFrame Index:[0m            4 | Fast Path Latency: [1;32m0.04 ms[0m | DSP Worker: [1;32m0.0 us[0m
+[0;34m--------------------------------------------------------------------------------[0m
+[1;32m[ FLUJO A: REACTIVIDAD CRUDA (Osciloscopio & Fast-FFT 8 Bandas) ][0m
+   [1mOscilloscope Waveform (Real-Time 256 PCM):[0m
+      |                                                      |
+      |                                                      |
+      | ++++++++++++++++++++++++++++++++++++++++++++++++++++ |
+      |                                                      |
+      |                                                      |
+   [1mFast-FFT Spectrum Frequency Bands:[0m
+    Sub-Bass (20-60Hz) : [                          ]   0%
+    Bass (60-250Hz)    : [                          ]   0%
+    Low-Mid (250-500Hz): [                          ]   0%
+    Mid (500-2kHz)     : [                          ]   0%
+    High-Mid (2k-4kHz) : [                          ]   0%
+    Presence (4k-6kHz) : [                          ]   0%
+    Brilliance (6k-12k): [                          ]   0%
+    Air (12k-20kHz)    : [                          ]   0%
+    Peak Amplitude: [                ] 0.00 | RMS Volume: [                ] 0.00
+[0;34m--------------------------------------------------------------------------------[0m
+[1;35m[ FLUJO B: FÍSICAS DEL ALMA (Essentia C++ Semantic Physics Forces) ][0m
+   [1mSpectral Centroid (Brillo y Centro de Masa):[0m
+    Freq: [1;37m    0.0 Hz[0m  [                        ]
+   [1mSethares Dissonance (Aspereza y Vorticidad 3D):[0m
+    Diss: [1;37m  0.000[0m      [                        ]
+   [1mOnset Novelty (Ondas de Choque Cinéticas):[0m
+    Strength: [1;37m   0.00[0m [                        ]                           
+   [1mMasa Cinética Dinámica & RMS:[0m
+    Energía:  [1;37m   0.00[0m [                        ]
+[1;36m================================================================================[0m
+ [90mPresiona Ctrl+C para detener la simulación.[0m
+[H[1;36m================================================================================[0m
+[1;37m   AUDIO-VOYAGER // CONTINUOUS SDF RAYMARCHING & SEMANTIC ML TELEMETRY          [0m
+[1;36m================================================================================[0m
+ [1;33mPipeline Status:[0m [1;32mSYSTEM AUDIO LOOPBACK (ACTIVE)[0m | Rate: [1;37m48000 Hz[0m | UI FPS: [1;37m60.0[0m
+ [1;33mFrame Index:[0m            5 | Fast Path Latency: [1;32m0.02 ms[0m | DSP Worker: [1;32m0.0 us[0m
+[0;34m--------------------------------------------------------------------------------[0m
+[1;32m[ FLUJO A: REACTIVIDAD CRUDA (Osciloscopio & Fast-FFT 8 Bandas) ][0m
+   [1mOscilloscope Waveform (Real-Time 256 PCM):[0m
+      |                                                      |
+      |                                                      |
+      | ++++++++++++++++++++++++++++++++++++++++++++++++++++ |
+      |                                                      |
+      |                                                      |
+   [1mFast-FFT Spectrum Frequency Bands:[0m
+    Sub-Bass (20-60Hz) : [                          ]   0%
+    Bass (60-250Hz)    : [                          ]   0%
+    Low-Mid (250-500Hz): [                          ]   0%
+    Mid (500-2kHz)     : [                          ]   0%
+    High-Mid (2k-4kHz) : [                          ]   0%
+    Presence (4k-6kHz) : [                          ]   0%
+    Brilliance (6k-12k): [                          ]   0%
+    Air (12k-20kHz)    : [                          ]   0%
+    Peak Amplitude: [                ] 0.00 | RMS Volume: [                ] 0.00
+[0;34m--------------------------------------------------------------------------------[0m
+[1;35m[ FLUJO B: FÍSICAS DEL ALMA (Essentia C++ Semantic Physics Forces) ][0m
+   [1mSpectral Centroid (Brillo y Centro de Masa):[0m
+    Freq: [1;37m    0.0 Hz[0m  [                        ]
+   [1mSethares Dissonance (Aspereza y Vorticidad 3D):[0m
+    Diss: [1;37m  0.000[0m      [                        ]
+   [1mOnset Novelty (Ondas de Choque Cinéticas):[0m
+    Strength: [1;37m   0.00[0m [                        ]                           
+   [1mMasa Cinética Dinámica & RMS:[0m
+    Energía:  [1;37m   0.00[0m [                        ]
+[1;36m================================================================================[0m
+ [90mPresiona Ctrl+C para detener la simulación.[0m
+[H[1;36m================================================================================[0m
+[1;37m   AUDIO-VOYAGER // CONTINUOUS SDF RAYMARCHING & SEMANTIC ML TELEMETRY          [0m
+[1;36m================================================================================[0m
+ [1;33mPipeline Status:[0m [1;32mSYSTEM AUDIO LOOPBACK (ACTIVE)[0m | Rate: [1;37m48000 Hz[0m | UI FPS: [1;37m60.0[0m
+ [1;33mFrame Index:[0m            6 | Fast Path Latency: [1;32m0.02 ms[0m | DSP Worker: [1;32m0.0 us[0m
+[0;34m--------------------------------------------------------------------------------[0m
+[1;32m[ FLUJO A: REACTIVIDAD CRUDA (Osciloscopio & Fast-FFT 8 Bandas) ][0m
+   [1mOscilloscope Waveform (Real-Time 256 PCM):[0m
+      |                                                      |
+      |                                                      |
+      | ++++++++++++++++++++++++++++++++++++++++++++++++++++ |
+      |                                                      |
+      |                                                      |
+   [1mFast-FFT Spectrum Frequency Bands:[0m
+    Sub-Bass (20-60Hz) : [                          ]   0%
+    Bass (60-250Hz)    : [                          ]   0%
+    Low-Mid (250-500Hz): [                          ]   0%
+    Mid (500-2kHz)     : [                          ]   0%
+    High-Mid (2k-4kHz) : [                          ]   0%
+    Presence (4k-6kHz) : [                          ]   0%
+    Brilliance (6k-12k): [                          ]   0%
+    Air (12k-20kHz)    : [                          ]   0%
+    Peak Amplitude: [                ] 0.00 | RMS Volume: [                ] 0.00
+[0;34m--------------------------------------------------------------------------------[0m
+[1;35m[ FLUJO B: FÍSICAS DEL ALMA (Essentia C++ Semantic Physics Forces) ][0m
+   [1mSpectral Centroid (Brillo y Centro de Masa):[0m
+    Freq: [1;37m    0.0 Hz[0m  [                        ]
+   [1mSethares Dissonance (Aspereza y Vorticidad 3D):[0m
+    Diss: [1;37m  0.000[0m      [                        ]
+   [1mOnset Novelty (Ondas de Choque Cinéticas):[0m
+    Strength: [1;37m   0.00[0m [                        ]                           
+   [1mMasa Cinética Dinámica & RMS:[0m
+    Energía:  [1;37m   0.00[0m [                        ]
+[1;36m================================================================================[0m
+ [90mPresiona Ctrl+C para detener la simulación.[0m
+[H[1;36m================================================================================[0m
+[1;37m   AUDIO-VOYAGER // CONTINUOUS SDF RAYMARCHING & SEMANTIC ML TELEMETRY          [0m
+[1;36m================================================================================[0m
+ [1;33mPipeline Status:[0m [1;32mSYSTEM AUDIO LOOPBACK (ACTIVE)[0m | Rate: [1;37m48000 Hz[0m | UI FPS: [1;37m60.0[0m
+ [1;33mFrame Index:[0m            7 | Fast Path Latency: [1;32m0.02 ms[0m | DSP Worker: [1;32m0.0 us[0m
+[0;34m--------------------------------------------------------------------------------[0m
+[1;32m[ FLUJO A: REACTIVIDAD CRUDA (Osciloscopio & Fast-FFT 8 Bandas) ][0m
+   [1mOscilloscope Waveform (Real-Time 256 PCM):[0m
+      |                                                      |
+      |                                                      |
+      | ++++++++++++++++++++++++++++++++++++++++++++++++++++ |
+      |                                                      |
+      |                                                      |
+   [1mFast-FFT Spectrum Frequency Bands:[0m
+    Sub-Bass (20-60Hz) : [                          ]   0%
+    Bass (60-250Hz)    : [                          ]   0%
+    Low-Mid (250-500Hz): [                          ]   0%
+    Mid (500-2kHz)     : [                          ]   0%
+    High-Mid (2k-4kHz) : [                          ]   0%
+    Presence (4k-6kHz) : [                          ]   0%
+    Brilliance (6k-12k): [                          ]   0%
+    Air (12k-20kHz)    : [                          ]   0%
+    Peak Amplitude: [                ] 0.00 | RMS Volume: [                ] 0.00
+[0;34m--------------------------------------------------------------------------------[0m
+[1;35m[ FLUJO B: FÍSICAS DEL ALMA (Essentia C++ Semantic Physics Forces) ][0m
+   [1mSpectral Centroid (Brillo y Centro de Masa):[0m
+    Freq: [1;37m    0.0 Hz[0m  [                        ]
+   [1mSethares Dissonance (Aspereza y Vorticidad 3D):[0m
+    Diss: [1;37m  0.000[0m      [                        ]
+   [1mOnset Novelty (Ondas de Choque Cinéticas):[0m
+    Strength: [1;37m   0.00[0m [                        ]                           
+   [1mMasa Cinética Dinámica & RMS:[0m
+    Energía:  [1;37m   0.00[0m [                        ]
+[1;36m================================================================================[0m
+ [90mPresiona Ctrl+C para detener la simulación.[0m
+[H[1;36m================================================================================[0m
+[1;37m   AUDIO-VOYAGER // CONTINUOUS SDF RAYMARCHING & SEMANTIC ML TELEMETRY          [0m
+[1;36m================================================================================[0m
+ [1;33mPipeline Status:[0m [1;32mSYSTEM AUDIO LOOPBACK (ACTIVE)[0m | Rate: [1;37m48000 Hz[0m | UI FPS: [1;37m60.0[0m
+ [1;33mFrame Index:[0m            8 | Fast Path Latency: [1;32m0.02 ms[0m | DSP Worker: [1;32m0.0 us[0m
+[0;34m--------------------------------------------------------------------------------[0m
+[1;32m[ FLUJO A: REACTIVIDAD CRUDA (Osciloscopio & Fast-FFT 8 Bandas) ][0m
+   [1mOscilloscope Waveform (Real-Time 256 PCM):[0m
+      |                                                      |
+      |                                                      |
+      | ++++++++++++++++++++++++++++++++++++++++++++++++++++ |
+      |                                                      |
+      |                                                      |
+   [1mFast-FFT Spectrum Frequency Bands:[0m
+    Sub-Bass (20-60Hz) : [                          ]   0%
+    Bass (60-250Hz)    : [                          ]   0%
+    Low-Mid (250-500Hz): [                          ]   0%
+    Mid (500-2kHz)     : [                          ]   0%
+    High-Mid (2k-4kHz) : [                          ]   0%
+    Presence (4k-6kHz) : [                          ]   0%
+    Brilliance (6k-12k): [                          ]   0%
+    Air (12k-20kHz)    : [                          ]   0%
+    Peak Amplitude: [                ] 0.00 | RMS Volume: [                ] 0.00
+[0;34m--------------------------------------------------------------------------------[0m
+[1;35m[ FLUJO B: FÍSICAS DEL ALMA (Essentia C++ Semantic Physics Forces) ][0m
+   [1mSpectral Centroid (Brillo y Centro de Masa):[0m
+    Freq: [1;37m    0.0 Hz[0m  [                        ]
+   [1mSethares Dissonance (Aspereza y Vorticidad 3D):[0m
+    Diss: [1;37m  0.000[0m      [                        ]
+   [1mOnset Novelty (Ondas de Choque Cinéticas):[0m
+    Strength: [1;37m   0.00[0m [                        ]                           
+   [1mMasa Cinética Dinámica & RMS:[0m
+    Energía:  [1;37m   0.00[0m [                        ]
+[1;36m================================================================================[0m
+ [90mPresiona Ctrl+C para detener la simulación.[0m

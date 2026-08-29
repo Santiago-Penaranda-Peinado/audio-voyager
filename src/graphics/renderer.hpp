@@ -1,0 +1,74 @@
+#pragma once
+
+#include "graphics/gl_context.hpp"
+#include "graphics/fbo.hpp"
+#include "graphics/shader.hpp"
+#include "graphics/oscilloscope_renderer.hpp"
+#include "graphics/postprocess.hpp"
+#include "graphics/imgui_overlay.hpp"
+#include "brain/semantic_brain.hpp"
+#include "director/autonomous_art_director.hpp"
+#include "core/types.hpp"
+#include <memory>
+
+namespace audio_voyager::graphics {
+
+struct alignas(16) RaymarchingUboData {
+    float resolution_time[4];   // xy: width, height, z: total_time, w: delta_time
+    float cam_pos[4];           // xyz: camera pos, w: camera roll
+    float cam_dir[4];           // xyz: forward dir, w: dynamic FOV
+    float cam_up[4];            // xyz: up vector, w: camera speed
+    float audio_params_1[4];    // x: norm_dissonance, y: norm_centroid, z: norm_energy, w: norm_sub_bass
+    float audio_params_2[4];    // x: norm_treble, y: cavity_scale, z: glitch_intensity, w: is_onset
+    float laser_pos[4];         // xyz: laser light pos, w: speed_lines
+    float tuners[4];            // x: bloom_intensity, y: chromatic_aberration, z: speed_multiplier, w: reserved
+};
+
+class Renderer {
+public:
+    explicit Renderer(const WindowConfig& config = WindowConfig{});
+    ~Renderer();
+
+    // Non-copyable
+    Renderer(const Renderer&) = delete;
+    Renderer& operator=(const Renderer&) = delete;
+
+    bool init();
+    void render_frame(const core::PhysicsAudioState& audio_state);
+
+    [[nodiscard]] bool should_close() const { return context_.should_close(); }
+    void poll_events() { context_.poll_events(); }
+
+    [[nodiscard]] GLContext& get_context() { return context_; }
+    [[nodiscard]] core::PhysicsTuners& get_tuners() noexcept { return tuners_; }
+    [[nodiscard]] float get_fps() const { return context_.get_fps(); }
+
+private:
+    void init_screen_quad();
+    void handle_keyboard_shortcuts();
+    void toggle_fullscreen();
+
+    GLContext context_;
+    brain::SemanticBrain brain_;
+    director::AutonomousArtDirector director_;
+
+    Framebuffer scene_fbo_;
+    Shader raymarching_shader_;
+    uint32_t raymarching_ubo_{0};
+    uint32_t quad_vao_{0};
+    uint32_t quad_vbo_{0};
+
+    OscilloscopeRenderer oscilloscope_;
+    PostProcessPipeline postprocess_;
+    ImGuiOverlay imgui_;
+
+    core::PhysicsTuners tuners_{};
+
+    bool is_fullscreen_{false};
+    int windowed_x_{100};
+    int windowed_y_{100};
+    int windowed_w_{1920};
+    int windowed_h_{1080};
+};
+
+} // namespace audio_voyager::graphics

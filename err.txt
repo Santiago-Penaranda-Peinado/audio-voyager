@@ -1,0 +1,10 @@
+[Shader] Compilation Error in [Fragment Shader]:
+0(56) : error C7537: OpenGL does not allow 'centroid' after a type specifier
+0(56) : error C0000: syntax error, unexpected '=', expecting ';' or '(' at token "="
+0(155) : error C7537: OpenGL does not allow 'centroid' after a type specifier
+0(155) : error C0000: syntax error, unexpected '=', expecting ';' or '(' at token "="
+0(163) : error C0000: syntax error, unexpected '*', expecting "::" at token "*"
+0(166) : error C1503: undefined variable "base_hue"
+0(169) : error C1503: undefined variable "base_hue"
+
+[Renderer AUDIT][ERROR] Failed to compile Raymarching Shader.

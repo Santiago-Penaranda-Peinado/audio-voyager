@@ -1,0 +1,22 @@
+# Override configuration specifically for native Linux hosts with physical ALSA / PulseAudio
+# Usage on Linux: docker compose -f docker-compose.yml -f docker-compose.linux.yml run --rm audio-voyager
+services:
+  audio-voyager:
+    network_mode: host
+    ipc: host
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /run/user/1000/pulse:/run/user/1000/pulse:ro
+      - ~/.config/pulse/cookie:/root/.config/pulse/cookie:ro
+    environment:
+      - PULSE_SERVER=unix:/run/user/1000/pulse/native
+    devices:
+      - /dev/snd:/dev/snd
+    # Uncomment when NVIDIA Container Toolkit is active:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]

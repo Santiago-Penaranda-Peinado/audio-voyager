@@ -1,0 +1,17 @@
+services:
+  audio-voyager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: audio-voyager:latest
+    container_name: audio-voyager-dev
+    stdin_open: true
+    tty: true
+    volumes:
+      - .:/workspace
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all,graphics,compute
+    working_dir: /workspace
+    command: /bin/bash

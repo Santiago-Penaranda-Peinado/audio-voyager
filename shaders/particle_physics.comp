@@ -1,0 +1,188 @@
+#version 450 core
+
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+struct Particle {
+    vec4 pos_life;   // xyz: position, w: life (0.0 -> 1.0)
+    vec4 vel_mass;   // xyz: velocity, w: mass / decay factor
+};
+
+layout(std430, binding = 0) buffer ParticleBuffer {
+    Particle particles[];
+};
+
+layout(std140, binding = 1) uniform AudioPhysicsUniforms {
+    vec4 u_audio_physics;  // x: spec_centroid_norm, y: dissonance, z: onset_strength, w: is_onset
+    vec4 u_audio_energy;   // x: energy_rms, y: peak_amplitude, z: sub_bass, w: high_treble
+    vec4 u_sim_params;     // x: delta_time, y: total_time, z: particle_count, w: damping
+    vec4 u_physics_scales; // x: gravity_scale, y: vorticity_scale, z: shockwave_scale, w: attraction_scale
+    vec4 u_color_base;     // rgb: base color, w: point_size_scale
+    vec4 u_color_peak;     // rgb: peak color, w: spare
+};
+
+// =============================================================================
+// Divergence-Free 3D Simplex & Curl Noise
+// =============================================================================
+vec4 permute(vec4 x) { return mod(((x * 34.0) + 1.0) * x, 289.0); }
+vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+float snoise(vec3 v) {
+    const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+    const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+    vec3 i  = floor(v + dot(v, C.yyy));
+    vec3 x0 = v - i + dot(i, C.xxx);
+
+    vec3 g = step(x0.yzx, x0.xyz);
+    vec3 l = 1.0 - g;
+    vec3 i1 = min(g.xyz, l.zxy);
+    vec3 i2 = max(g.xyz, l.zxy);
+
+    vec3 x1 = x0 - i1 + 1.0 * C.xxx;
+    vec3 x2 = x0 - i2 + 2.0 * C.xxx;
+    vec3 x3 = x0 - 1.0 + 3.0 * C.xxx;
+
+    i = mod(i, 289.0);
+    vec4 p = permute(permute(permute(
+                i.z + vec4(0.0, i1.z, i2.z, 1.0))
+            + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+            + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+    float n_ = 0.142857142857;
+    vec3  ns = n_ * D.wyz - D.xzx;
+
+    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+
+    vec4 x_ = floor(j * ns.z);
+    vec4 y_ = floor(j - 7.0 * x_);
+
+    vec4 x = x_ * ns.x + ns.yyyy;
+    vec4 y = y_ * ns.x + ns.yyyy;
+    vec4 h = 1.0 - abs(x) - abs(y);
+
+    vec4 b0 = vec4(x.xy, y.xy);
+    vec4 b1 = vec4(x.zw, y.zw);
+
+    vec4 s0 = floor(b0) * 2.0 + 1.0;
+    vec4 s1 = floor(b1) * 2.0 + 1.0;
+    vec4 sh = -step(h, vec4(0.0));
+
+    vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+    vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+
+    vec3 p0 = vec3(a0.xy, h.x);
+    vec3 p1 = vec3(a0.zw, h.y);
+    vec3 p2 = vec3(a1.xy, h.z);
+    vec3 p3 = vec3(a1.zw, h.w);
+
+    vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+    p0 *= norm.x;
+    p1 *= norm.y;
+    p2 *= norm.z;
+    p3 *= norm.w;
+
+    vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+    m = m * m;
+    return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+}
+
+vec3 computeCurl(vec3 p) {
+    const float eps = 0.1;
+    vec3 dx = vec3(eps, 0.0, 0.0);
+    vec3 dy = vec3(0.0, eps, 0.0);
+    vec3 dz = vec3(0.0, 0.0, eps);
+
+    float n0 = snoise(p + dy) - snoise(p - dy);
+    float n1 = snoise(p + dz) - snoise(p - dz);
+    float n2 = snoise(p + dx) - snoise(p - dx);
+
+    vec3 curl;
+    curl.x = (snoise(p + dy + dz) - snoise(p - dy + dz) - (snoise(p + dy - dz) - snoise(p - dy - dz))) / (4.0 * eps);
+    curl.y = (snoise(p + dz + dx) - snoise(p - dz + dx) - (snoise(p + dz - dx) - snoise(p - dz - dx))) / (4.0 * eps);
+    curl.z = (snoise(p + dx + dy) - snoise(p - dx + dy) - (snoise(p + dx - dy) - snoise(p - dx - dy))) / (4.0 * eps);
+
+    return curl;
+}
+
+float hash(uint n) {
+    n = (n << 13U) ^ n;
+    n = n * (n * n * 15731U + 789221U) + 1376312589U;
+    return float(n & 0x7fffffffU) / float(0x7fffffff);
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    uint total_particles = uint(u_sim_params.z);
+    if (id >= total_particles) return;
+
+    float dt = u_sim_params.x;
+    float time = u_sim_params.y;
+
+    Particle p = particles[id];
+    vec3 pos = p.pos_life.xyz;
+    float life = p.pos_life.w;
+    vec3 vel = p.vel_mass.xyz;
+    float mass = p.vel_mass.w;
+
+    float spec_centroid = u_audio_physics.x;
+    float dissonance = u_audio_physics.y;
+    float onset = u_audio_physics.z;
+    float is_onset = u_audio_physics.w;
+    float rms = u_audio_energy.x;
+    float sub_bass = u_audio_energy.z;
+
+    float grav_mult = u_physics_scales.x;
+    float vort_mult = u_physics_scales.y;
+    float shock_mult = u_physics_scales.z;
+    float attr_mult = u_physics_scales.w;
+    float base_damping = u_sim_params.w;
+
+    // 1. Spectral Centroid: Directional Gravity / Buoyancy Force
+    vec3 gravity = vec3(0.0, (spec_centroid - 0.42) * grav_mult, 0.0);
+
+    // 2. Sethares Dissonance: 3D Fluid Vorticity & Curl Noise
+    vec3 noise_pos = pos * 0.15 + vec3(time * 0.1, time * 0.12, time * 0.08);
+    vec3 curl = computeCurl(noise_pos);
+    vec3 vorticity_force = curl * (dissonance * vort_mult + 0.5);
+
+    // 3. Onset Detection: Kinetic Shockwave Explosion
+    vec3 shockwave_force = vec3(0.0);
+    float dist = length(pos);
+    if (is_onset > 0.5 || onset > 0.4) {
+        vec3 dir = (dist > 0.01) ? normalize(pos) : vec3(0.0, 1.0, 0.0);
+        float falloff = 1.0 / (dist * 0.4 + 0.3);
+        shockwave_force = dir * (onset * shock_mult * falloff);
+        life = 1.0;
+    }
+
+    // 4. Harmonic Core Centripetal Attraction (Sub-Bass + RMS)
+    vec3 attraction_force = -pos * (0.8 + sub_bass * attr_mult + rms * 2.0);
+
+    // 5. Total Acceleration
+    vec3 total_acc = gravity + vorticity_force + shockwave_force + attraction_force;
+
+    // Viscous fluid drag
+    float dynamic_damping = base_damping - (1.0 - rms) * 0.05;
+    vel += total_acc * (dt / max(mass, 0.1));
+    vel *= dynamic_damping;
+    pos += vel * dt;
+
+    life -= dt * (0.15 + rms * 0.2);
+
+    // 6. Boundary / Respawn Condition
+    if (life <= 0.0 || dist > 35.0 || isnan(pos.x)) {
+        float seed = float(id) + time * 100.0;
+        float theta = hash(uint(seed)) * 6.2831853;
+        float phi = (hash(uint(seed + 1.0)) - 0.5) * 3.14159;
+        float r = 0.5 + hash(uint(seed + 2.0)) * 2.5;
+
+        pos = vec3(r * cos(theta) * cos(phi), r * sin(phi), r * sin(theta) * cos(phi));
+        vel = cross(normalize(pos), vec3(0.0, 1.0, 0.0)) * (2.0 + sub_bass * 4.0);
+        life = 0.8 + hash(uint(seed + 3.0)) * 0.4;
+        mass = 0.5 + hash(uint(seed + 4.0)) * 0.8;
+    }
+
+    p.pos_life = vec4(pos, life);
+    p.vel_mass = vec4(vel, mass);
+    particles[id] = p;
+}
