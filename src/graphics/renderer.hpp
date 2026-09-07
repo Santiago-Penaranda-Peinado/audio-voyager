@@ -4,7 +4,6 @@
 #include "graphics/fbo.hpp"
 #include "graphics/shader.hpp"
 #include "graphics/oscilloscope_renderer.hpp"
-#include "graphics/particle_system.hpp"
 #include "graphics/postprocess.hpp"
 #include "graphics/imgui_overlay.hpp"
 #include "brain/semantic_brain.hpp"
@@ -19,10 +18,11 @@ struct alignas(16) RaymarchingUboData {
     float cam_pos[4];           // xyz: camera pos, w: camera roll
     float cam_dir[4];           // xyz: forward dir, w: dynamic FOV
     float cam_up[4];            // xyz: up vector, w: camera speed
-    float biome_weights[4];     // x: weight_liquid, y: weight_crystal, z: weight_cyber, w: valence
-    float physical_params[4];   // x: elastic_dilation, y: surface_ripple, z: emission_pulse, w: norm_centroid
-    float laser_pos[4];         // xyz: laser light pos, w: arousal
-    float extra_physics[4];     // x: melodic_mids, y: treble_sparkle, z: is_silent, w: bpm
+    float biome_weights_1[4];   // x: w_ocean, y: w_metal, z: w_cyber, w: w_ethereal
+    float biome_weights_2[4];   // x: w_funk, y: valence, z: arousal, w: norm_centroid
+    float physical_params[4];   // x: elastic_dilation, y: surface_ripple, z: emission_pulse, w: melodic_mids
+    float laser_extra[4];       // xyz: laser light pos, w: treble_sparkle
+    float extra_params[4];      // x: is_silent, y: bpm, z: beat_phase, w: speed_forward
 };
 
 class Renderer {
@@ -59,7 +59,6 @@ private:
     uint32_t quad_vao_{0};
     uint32_t quad_vbo_{0};
 
-    ParticleSystem particle_system_;
     OscilloscopeRenderer oscilloscope_;
     PostProcessPipeline postprocess_;
     ImGuiOverlay imgui_;

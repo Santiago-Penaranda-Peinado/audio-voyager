@@ -96,7 +96,8 @@ void StreamARaw::extract_frequency_bands(const std::vector<float>& magnitude_spe
         const float f_low = BAND_LIMITS[b].first;
         const float f_high = BAND_LIMITS[b].second;
 
-        size_t bin_start = std::clamp(static_cast<size_t>(f_low / bin_resolution), size_t{0}, num_bins - 1);
+        // Skip bin 0 (DC offset) to avoid false energy spikes
+        size_t bin_start = std::clamp(static_cast<size_t>(f_low / bin_resolution), size_t{1}, num_bins - 1);
         size_t bin_end = std::clamp(static_cast<size_t>(f_high / bin_resolution), bin_start + 1, num_bins);
 
         float sum = 0.0f;
@@ -106,8 +107,8 @@ void StreamARaw::extract_frequency_bands(const std::vector<float>& magnitude_spe
 
         float band_energy = sum / static_cast<float>(std::max(size_t{1}, bin_end - bin_start));
         
-        // Logarithmic scaling for visual perceptual response
-        band_energy = std::clamp(std::log10(1.0f + 9.0f * band_energy * 10.0f), 0.0f, 1.0f);
+        // Logarithmic scaling with high dynamic headroom
+        band_energy = std::clamp(std::log10(1.0f + 18.0f * band_energy), 0.0f, 1.0f);
 
         // Attack & Decay smoothing filter (instant attack, smooth decay)
         if (band_energy > smooth_bands_[b]) {

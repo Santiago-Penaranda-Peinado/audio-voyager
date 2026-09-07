@@ -136,6 +136,9 @@ void main() {
     float is_onset = u_audio_physics.w;
     float rms = u_audio_energy.x;
     float sub_bass = u_audio_energy.z;
+    float high_treble = u_audio_energy.w;
+    float treble_sparkle = u_laser_pos.w;
+    float melodic_mids = u_cam_pos.w;
 
     float grav_mult = u_physics_scales.x;
     float vort_mult = u_physics_scales.y;
@@ -143,50 +146,68 @@ void main() {
     float attr_mult = u_physics_scales.w;
     float base_damping = u_sim_params.w;
 
-    // 1. Directional Buoyancy / Updraft Force
-    vec3 gravity = vec3(0.0, (spec_centroid - 0.40) * grav_mult, 0.0);
+    // 1. Directional Buoyancy / Updraft Force (Resonant with Centroid & Mids)
+    vec3 gravity = vec3(0.0, (spec_centroid - 0.38) * grav_mult * 1.5 + (melodic_mids * 0.4), 0.0);
 
-    // 2. Vorticity & 3D Curl Noise Swirl
-    vec3 noise_pos = (pos - cam_pos) * 0.12 + vec3(time * 0.08, time * 0.10, time * 0.06);
+    // 2. Sub-Bass Vorticity & 3D Curl Noise Swirl (Turbulence explodes with heavy bass)
+    float bass_turbulence = 1.0 + sub_bass * 3.8 + rms * 2.0;
+    vec3 noise_pos = (pos - cam_pos) * 0.10 + vec3(time * (0.08 + sub_bass * 0.15), time * 0.10, time * 0.07);
     vec3 curl = computeCurl(noise_pos);
-    vec3 vorticity_force = curl * (dissonance * vort_mult * 2.5 + 0.8);
+    vec3 vorticity_force = curl * (dissonance * vort_mult * 2.8 + 0.9) * bass_turbulence;
 
-    // 3. Kinetic Shockwave Burst from Laser Entity
+    // 3. Kinetic Audio Transient Shockwave Blast (Radially pushes particles away on kicks/onsets)
     vec3 shockwave_force = vec3(0.0);
     vec3 to_laser = pos - laser_pos;
     float dist_laser = length(to_laser);
-    if (is_onset > 0.5 || onset > 0.35) {
-        vec3 dir = (dist_laser > 0.01) ? normalize(to_laser) : vec3(0.0, 1.0, 0.0);
-        float falloff = 1.0 / (dist_laser * 0.3 + 0.4);
-        shockwave_force = dir * (onset * shock_mult * falloff * 2.0);
-        life = 1.0;
+    vec3 to_cam = pos - cam_pos;
+    float dist_c = max(length(to_cam), 0.05);
+
+    if (is_onset > 0.5 || onset > 0.28) {
+        vec3 dir_laser = (dist_laser > 0.01) ? normalize(to_laser) : vec3(0.0, 1.0, 0.0);
+        vec3 dir_cam = normalize(to_cam);
+        vec3 combined_dir = normalize(dir_laser * 0.7 + dir_cam * 0.3);
+
+        float falloff = 1.0 / (dist_laser * 0.25 + 0.35);
+        shockwave_force = combined_dir * (onset * shock_mult * falloff * 4.2);
+        life = min(life + 0.35, 1.0);
     }
 
-    // 4. Centripetal Attraction towards Laser Ribbon Entity
-    vec3 attraction_force = -to_laser * (0.6 + sub_bass * attr_mult + rms * 1.5);
+    // 4. Centripetal Attraction towards Laser Ribbon Entity (Orbiting gravitational envelope)
+    vec3 attraction_force = -to_laser * (0.5 + sub_bass * attr_mult * 1.2 + rms * 1.6);
 
-    // 5. Total Acceleration & Integration
-    vec3 total_acc = gravity + vorticity_force + shockwave_force + attraction_force;
+    // 5. High-Frequency Treble Sparkle Bursts (Jitter & micro-acceleration)
+    vec3 sparkle_jitter = vec3(0.0);
+    if (treble_sparkle > 0.15 || high_treble > 0.15) {
+        float h1 = hash(id + uint(time * 30.0)) - 0.5;
+        float h2 = hash(id + 777U + uint(time * 30.0)) - 0.5;
+        float h3 = hash(id + 1337U + uint(time * 30.0)) - 0.5;
+        sparkle_jitter = vec3(h1, h2, h3) * (treble_sparkle * 16.0 + high_treble * 12.0);
+    }
 
-    float dynamic_damping = base_damping - (1.0 - rms) * 0.03;
-    vel += total_acc * (dt / max(mass, 0.1));
+    // 6. Total Acceleration & Integration
+    vec3 total_acc = gravity + vorticity_force + shockwave_force + attraction_force + sparkle_jitter;
+
+    float dynamic_damping = base_damping - (1.0 - rms) * 0.025;
+    vel += total_acc * (dt / max(mass, 0.08));
     vel *= dynamic_damping;
     pos += vel * dt;
 
-    life -= dt * (0.12 + rms * 0.18);
+    life -= dt * (0.10 + rms * 0.16 + treble_sparkle * 0.12);
 
-    // 6. Camera-Centric Infinite Respawn (Never leaves particles behind in flight)
-    if (life <= 0.0 || dist_to_cam > 32.0 || isnan(pos.x)) {
+    // 7. Camera-Centric Infinite Respawn (Never leaves particles behind in flight)
+    if (life <= 0.0 || dist_to_cam > 35.0 || isnan(pos.x)) {
         float seed = float(id) + time * 100.0;
         float theta = hash(uint(seed)) * 6.2831853;
         float phi = (hash(uint(seed + 1.0)) - 0.5) * 3.14159;
-        float r = 1.5 + hash(uint(seed + 2.0)) * 14.0;
+        float r = 1.8 + hash(uint(seed + 2.0)) * 16.0;
 
-        vec3 offset = vec3(r * cos(theta) * cos(phi), r * sin(phi) * 0.6, r * sin(theta) * cos(phi));
-        pos = cam_pos + offset + normalize(laser_pos - cam_pos) * (hash(uint(seed + 5.0)) * 5.0);
-        vel = cross(normalize(offset + vec3(0.001)), vec3(0.0, 1.0, 0.0)) * (1.2 + sub_bass * 3.0);
-        life = 0.8 + hash(uint(seed + 3.0)) * 0.4;
-        mass = 0.5 + hash(uint(seed + 4.0)) * 0.8;
+        vec3 offset = vec3(r * cos(theta) * cos(phi), r * sin(phi) * 0.7, r * sin(theta) * cos(phi));
+        pos = cam_pos + offset + normalize(laser_pos - cam_pos) * (hash(uint(seed + 5.0)) * 6.0);
+        
+        // Initial orbital velocity around flight path
+        vel = cross(normalize(offset + vec3(0.001)), vec3(0.0, 1.0, 0.0)) * (1.4 + sub_bass * 3.5);
+        life = 0.75 + hash(uint(seed + 3.0)) * 0.5;
+        mass = 0.4 + hash(uint(seed + 4.0)) * 0.8;
     }
 
     p.pos_life = vec4(pos, life);

@@ -26,7 +26,7 @@ inline const std::array<std::string, 8> FFT_BAND_NAMES = {
     "Sub-Bass", "Bass", "Low-Mid", "Mid", "High-Mid", "Presence", "Treble", "Air"
 };
 
-// Stream A Snapshot (Ultra low-latency raw audio buffers, < 0.05 ms latency)
+// Stream A Snapshot (Ultra low-latency raw audio buffers, < 0.03 ms latency)
 struct StreamASnapshot {
     std::array<float, RAW_OSCILLOSCOPE_SAMPLES> waveform{};
     std::array<float, FFT_BANDS_COUNT> spectrum_bands{};
@@ -44,6 +44,7 @@ struct StreamBSnapshot {
     float spectral_centroid_hz{0.0f};
     float spectral_centroid_norm{0.0f};
     float dissonance{0.0f};
+    float spectral_flatness{0.0f};     // Wiener entropy: 0.0 = pure tone, 1.0 = white noise/distortion
     float onset_strength{0.0f};
     bool is_onset{false};
     float energy{0.0f};
@@ -52,12 +53,12 @@ struct StreamBSnapshot {
     float compute_time_us{0.0f};
     uint64_t timestamp_us{0};
 
-    // Multi-band frequency decomposition
-    float band_sub_bass{0.0f};   // 20 - 80 Hz
-    float band_bass{0.0f};       // 80 - 250 Hz
-    float band_mids{0.0f};       // 250 - 2500 Hz (Vocals / Melody)
-    float band_treble{0.0f};     // 2500 - 8000 Hz (Percussion / Snares)
-    float band_air{0.0f};        // 8000 - 20000 Hz (Sparkle / Sibilance)
+    // Multi-band frequency decomposition (from 1024-pt FFT, 46.875 Hz/bin)
+    float band_sub_bass{0.0f};   // Bins 1-4:   47 - 188 Hz (skipping DC!)
+    float band_bass{0.0f};       // Bins 4-11:  188 - 516 Hz
+    float band_mids{0.0f};       // Bins 11-64: 516 - 3000 Hz (Vocals / Melody)
+    float band_treble{0.0f};     // Bins 64-171: 3000 - 8000 Hz
+    float band_air{0.0f};        // Bins 171-427: 8000 - 20000 Hz
 };
 
 // Combined Physics Audio State
@@ -68,29 +69,35 @@ struct PhysicsAudioState {
     uint64_t timestamp_us{0};
 };
 
-// Continuous Semantic Vector for Raymarching Biomes and Autonomous Direction
+// Continuous 5-Biome Semantic Vector for Raymarching and Art Direction
 struct AudioSemanticVector {
-    // 1. THE MIND: Continuous Biome Weights (Inferred via ML, Sum = 1.0)
-    float weight_liquid{0.34f};   // P(Acoustic, Organic, Harmonious Ocean)
-    float weight_crystal{0.33f};  // P(Tonal Tension, High Dissonance, Monolith Void)
-    float weight_cyber{0.33f};    // P(Electronic, Heavy Beat, Cyber Matrix)
-    float valence{0.5f};          // Emotional Valence [0.0 = dark/tense, 1.0 = bright/euphoric]
-    float arousal{0.5f};          // Physiological Arousal [0.0 = calm, 1.0 = intense]
+    // 1. THE MIND: Continuous 5-Biome Barycentric Weights (Sum = 1.0)
+    float weight_ocean{0.20f};    // Biome 1: Silk Ocean & Bioluminescent Dew (Lofi / Jazz / Ambient)
+    float weight_metal{0.20f};    // Biome 2: Obsidian Fracture & Magma Spikes (Metal / Hard Rock)
+    float weight_cyber{0.20f};    // Biome 3: Equalizer Skyscraper City & Arches (Dubstep / EDM / Techno)
+    float weight_ethereal{0.20f}; // Biome 4: Celestial Golden Rings & Obelisks (Symphonic / Dreamy)
+    float weight_funk{0.20f};     // Biome 5: Psychedelic Jelly Floor & Metaballs (Acid Funk / Electro)
 
-    // 2. THE MUSCLE: Multi-Band Physical Excitations (Evaluated at 144 Hz)
-    float elastic_dilation{0.0f};  // Sub-Bass cavity & wave dilation
-    float surface_ripple{0.0f};    // Onset shockwave ripple on surfaces
-    float melodic_mids{0.0f};      // Mid-frequency vocal/melody deformation
-    float treble_sparkle{0.0f};    // High-frequency particle sparkle & specular
-    float emission_pulse{1.0f};    // Volumetric HDR glow pulse
-    float norm_centroid{0.5f};     // Synesthetic HSV base color
-    bool is_onset{false};          // Transient beat drop
-    bool is_silent{false};         // Quiescence / Silence state
+    // Affective Coordinates
+    float valence{0.5f};          // Emotional warmth / harmonic consonance
+    float arousal{0.5f};          // Kinetic intensity / arousal
+    float norm_centroid{0.5f};    // Synesthetic chromatic hue [0, 1]
 
-    // 3. Autonomous Kinematics
-    float speed_forward{1.3f};     // Camera cruising speed (m/s)
-    float bpm{120.0f};             // Detected Tempo
-    float bpm_confidence{0.5f};    // Tempo Confidence (decays to 0 on silence)
+    // 2. THE MUSCLE: Multi-Band Physical Excitations (@ 144 Hz DSP)
+    float elastic_dilation{0.0f}; // Sub-Bass cavity & wave dilation (20-80Hz)
+    float surface_ripple{0.0f};   // Onset shockwave ripple on surfaces
+    float melodic_mids{0.0f};     // Mid-frequency vocal/melody deformation
+    float treble_sparkle{0.0f};   // High-frequency sparkle & specular
+    float emission_pulse{1.0f};   // Volumetric HDR glow pulse
+    bool is_onset{false};
+    bool is_silent{false};
+
+    // 3. Autonomous Kinematics (Warp Flight)
+    float speed_forward{1.4f};    // Forward cruising speed (1.2 -> 4.2 m/s)
+    float camera_roll{0.0f};      // Smooth aerodynamic banking roll
+    float bpm{120.0f};
+    float bpm_confidence{0.5f};
+    float beat_phase{0.0f};       // Accumulated beat phase [0, 2*PI), locked to tempo
 };
 
 // Runtime GUI tuners (F12 Secret HUD)

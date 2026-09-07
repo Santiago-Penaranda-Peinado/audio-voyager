@@ -17,8 +17,7 @@ void check_gl_error_step(const char* location) {
 }
 
 Renderer::Renderer(const WindowConfig& config)
-    : context_(config)
-    , particle_system_(1048576) {
+    : context_(config) {
 }
 
 Renderer::~Renderer() {
@@ -36,7 +35,7 @@ bool Renderer::init() {
     int width = context_.get_width();
     int height = context_.get_height();
 
-    std::cout << "[Renderer AUDIT] Initializing renderer at " << width << "x" << height << "...\n";
+    std::cout << "[Renderer AUDIT] Initializing 5-Biome Continuous Raymarching Engine at " << width << "x" << height << "...\n";
 
     // 1. Initialize HDR Scene Framebuffer (GL_RGBA16F)
     if (!scene_fbo_.init(width, height, true)) {
@@ -74,7 +73,7 @@ bool Renderer::init() {
     imgui_.init(context_.get_window());
 
     check_gl_error_step("init");
-    std::cout << "[Renderer AUDIT] Master SDF Raymarching & Autonomous Art Director Engine Ready.\n";
+    std::cout << "[Renderer AUDIT] Master 5-Biome Continuous Raymarching Engine Ready.\n";
     return true;
 }
 
@@ -83,11 +82,11 @@ void Renderer::init_screen_quad() {
         // positions   // texCoords
         -1.0f,  1.0f,  0.0f, 1.0f,
         -1.0f, -1.0f,  0.0f, 0.0f,
-         1.0f, -1.0f,  1.0f, 0.0f,
+          1.0f, -1.0f,  1.0f, 0.0f,
 
         -1.0f,  1.0f,  0.0f, 1.0f,
-         1.0f, -1.0f,  1.0f, 0.0f,
-         1.0f,  1.0f,  1.0f, 1.0f
+          1.0f, -1.0f,  1.0f, 0.0f,
+          1.0f,  1.0f,  1.0f, 1.0f
     };
 
     glGenVertexArrays(1, &quad_vao_);
@@ -169,11 +168,11 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
 
     if (width <= 0 || height <= 0) return;
 
-    // 1. Semantic Brain: Asynchronous ML & Real-time Multi-Band DSP Fusion
+    // 1. Semantic Brain: Real-time Multi-Band DSP & 5-Biome ML Inference
     brain_.update(audio_state, dt);
     const core::AudioSemanticVector& semantic = brain_.get_semantic_vector();
 
-    // 2. Autonomous Art Director: Dynamic Rhythmic Head-Bobbing & Clamped Altitudes
+    // 2. Autonomous Art Director: Smooth 6DoF Pathway Navigation
     director_.update(semantic, dt * tuners_.speed_multiplier);
     glm::mat4 view_proj = director_.get_view_projection_matrix(aspect);
     glm::vec3 cam_pos = director_.get_camera_pos();
@@ -181,20 +180,22 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     glm::vec3 cam_up = director_.get_camera_up();
     glm::vec3 laser_pos = director_.get_laser_pos();
 
-    // Camera Telemetry Logging (every 60 frames)
+    // Telemetry Logging (every 60 frames)
     static uint64_t frame_log_counter = 0;
     if (++frame_log_counter % 60 == 0) {
-        std::cout << "[AutonomousArtDirector AUDIT] Pos: (" 
+        std::cout << "[BiomeRenderer AUDIT] Pos: (" 
                   << std::fixed << std::setprecision(2) << cam_pos.x << ", " << cam_pos.y << ", " << cam_pos.z << ")"
-                  << " | Biomes: [L: " << semantic.weight_liquid 
-                  << " | X: " << semantic.weight_crystal 
-                  << " | C: " << semantic.weight_cyber << "]"
+                  << " | Biomes: [O: " << semantic.weight_ocean 
+                  << " | M: " << semantic.weight_metal 
+                  << " | C: " << semantic.weight_cyber 
+                  << " | E: " << semantic.weight_ethereal 
+                  << " | F: " << semantic.weight_funk << "]"
                   << " | Speed: " << semantic.speed_forward << " m/s"
-                  << (semantic.is_silent ? " [QUIESCENCE / SILENCE]" : "") 
+                  << (semantic.is_silent ? " [QUIESCENCE]" : "") 
                   << " | FPS: " << context_.get_fps() << "\n" << std::flush;
     }
 
-    // 3. Render Continuous SDF Raymarching into HDR Scene Framebuffer
+    // 3. Render 5-Biome Raymarching into HDR Scene Framebuffer
     scene_fbo_.resize(width, height);
     scene_fbo_.bind();
 
@@ -222,25 +223,30 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     ubo_data.cam_up[2] = cam_up.z;
     ubo_data.cam_up[3] = semantic.speed_forward;
 
-    ubo_data.biome_weights[0] = semantic.weight_liquid;
-    ubo_data.biome_weights[1] = semantic.weight_crystal;
-    ubo_data.biome_weights[2] = semantic.weight_cyber;
-    ubo_data.biome_weights[3] = semantic.valence;
+    ubo_data.biome_weights_1[0] = semantic.weight_ocean;
+    ubo_data.biome_weights_1[1] = semantic.weight_metal;
+    ubo_data.biome_weights_1[2] = semantic.weight_cyber;
+    ubo_data.biome_weights_1[3] = semantic.weight_ethereal;
+
+    ubo_data.biome_weights_2[0] = semantic.weight_funk;
+    ubo_data.biome_weights_2[1] = semantic.valence;
+    ubo_data.biome_weights_2[2] = semantic.arousal;
+    ubo_data.biome_weights_2[3] = semantic.norm_centroid;
 
     ubo_data.physical_params[0] = semantic.elastic_dilation;
     ubo_data.physical_params[1] = semantic.surface_ripple;
     ubo_data.physical_params[2] = semantic.emission_pulse;
-    ubo_data.physical_params[3] = semantic.norm_centroid;
+    ubo_data.physical_params[3] = semantic.melodic_mids;
 
-    ubo_data.laser_pos[0] = laser_pos.x;
-    ubo_data.laser_pos[1] = laser_pos.y;
-    ubo_data.laser_pos[2] = laser_pos.z;
-    ubo_data.laser_pos[3] = semantic.arousal;
+    ubo_data.laser_extra[0] = laser_pos.x;
+    ubo_data.laser_extra[1] = laser_pos.y;
+    ubo_data.laser_extra[2] = laser_pos.z;
+    ubo_data.laser_extra[3] = semantic.treble_sparkle;
 
-    ubo_data.extra_physics[0] = semantic.melodic_mids;
-    ubo_data.extra_physics[1] = semantic.treble_sparkle;
-    ubo_data.extra_physics[2] = semantic.is_silent ? 1.0f : 0.0f;
-    ubo_data.extra_physics[3] = semantic.bpm;
+    ubo_data.extra_params[0] = semantic.is_silent ? 1.0f : 0.0f;
+    ubo_data.extra_params[1] = semantic.bpm;
+    ubo_data.extra_params[2] = semantic.beat_phase;
+    ubo_data.extra_params[3] = semantic.speed_forward;
 
     glBindBuffer(GL_UNIFORM_BUFFER, raymarching_ubo_);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(RaymarchingUboData), &ubo_data);
@@ -264,11 +270,13 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
 
     scene_fbo_.unbind();
 
-    // 5. Optical Post-Processing (Dynamic Bloom Slider from Tuners + Eye Adaptation + ACES Filmic)
+    // 5. Optical Post-Processing (Bloom + Chromatic Aberration + ACES Filmic)
     glDisable(GL_BLEND);
+    float audio_rms = std::max(audio_state.stream_a.rms, audio_state.stream_b.rms);
     postprocess_.render(scene_fbo_.get_texture(), width, height, 
                         tuners_.bloom_intensity, tuners_.chromatic_aberration, 
-                        semantic.surface_ripple, 0.0f, time);
+                        semantic.surface_ripple, 0.0f, time,
+                        audio_rms, dt);
 
     // 6. Debug HUD (ImGui) - Toggle via F12
     if (tuners_.show_hud) {

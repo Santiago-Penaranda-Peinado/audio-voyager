@@ -10,10 +10,11 @@ layout(std140, binding = 0) uniform RaymarchingUniforms {
     vec4 u_cam_pos;           // xyz: camera position, w: camera roll
     vec4 u_cam_dir;           // xyz: forward direction, w: dynamic FOV
     vec4 u_cam_up;            // xyz: up vector, w: camera speed
-    vec4 u_biome_weights;     // x: w_liquid, y: w_crystal, z: w_cyber, w: valence
-    vec4 u_physical_params;   // x: elastic_dilation, y: surface_ripple, z: emission_pulse, w: norm_centroid
-    vec4 u_laser_pos;         // xyz: laser light position, w: arousal
-    vec4 u_extra_physics;     // x: melodic_mids, y: treble_sparkle, z: is_silent, w: bpm
+    vec4 u_biome_weights_1;   // x: w_ocean, y: w_metal, z: w_cyber, w: w_ethereal
+    vec4 u_biome_weights_2;   // x: w_funk, y: valence, z: arousal, w: norm_centroid
+    vec4 u_physical_params;   // x: elastic_dilation, y: surface_ripple, z: emission_pulse, w: melodic_mids
+    vec4 u_laser_extra;       // xyz: laser light position, w: treble_sparkle
+    vec4 u_extra_params;      // x: is_silent, y: bpm, z: bpm_conf, w: speed_forward
 };
 
 // Continuous HSV to RGB Converter
@@ -35,7 +36,7 @@ mat2 rot(float a) {
     return mat2(c, s, -s, c);
 }
 
-// Smooth 3D Hash for Procedural Stars
+// Smooth 3D Hash for Stars & Volumetric Sparkles
 float hash3(vec3 p) {
     p = fract(p * vec3(443.897, 441.423, 437.195));
     p += dot(p, p.yzx + 19.19);
@@ -43,119 +44,162 @@ float hash3(vec3 p) {
 }
 
 // =============================================================================
-// BIOME 1: Liquid Silk Ocean (Lofi, Chill, Acoustic, Frog Family)
-// Océano suave con oleaje armónico potente, perlas amigables y cielo ámbar/esmeralda
+// BIOME 1: Silk Ocean & Bioluminescent Dew (Lofi, Jazz, Chill, Ambient)
+// Organic silky sea undulating with sub-bass dilation & melodic mids
 // =============================================================================
-float sdf_liquid(vec3 p, vec3 cam_p, float dilation, float mids, float is_silent, float time) {
+float sdf_ocean(vec3 p, vec3 cam_p, float dilation, float mids, float is_silent, float beat_phase) {
     float wave_scale = 1.0 - is_silent * 0.95;
 
-    // Harmonic multi-octave liquid waves with high amplitude reaction to sub-bass
-    float wave1 = sin(p.x * 0.35 + time * 1.4) * cos(p.z * 0.28 + time * 1.0) * (0.55 * wave_scale + dilation * 0.85);
-    float wave2 = sin((p.x + p.z) * 0.70 + time * 2.0) * (0.28 * wave_scale + mids * 0.45);
-    float wave_bass = sin(length(p.xz - cam_p.xz) * 0.25 - time * 3.0) * (dilation * 0.75 * wave_scale);
+    // Harmonic undulating sea sculpted directly by acoustic forces
+    float wave1 = sin(p.x * 0.35 + beat_phase * 0.4) * cos(p.z * 0.28 + beat_phase * 0.3) * (0.30 * wave_scale + dilation * 0.90);
+    float wave2 = sin((p.x + p.z) * 0.60 + beat_phase * 0.5) * (0.15 * wave_scale + mids * 0.45);
+    float wave_bass = sin(length(p.xz - cam_p.xz) * 0.25 - beat_phase * 0.6) * (dilation * 0.65 * wave_scale);
     float ocean_y = -2.2 + (wave1 + wave2 + wave_bass);
     float d_ocean = p.y - ocean_y;
 
-    // Floating bioluminescent mercury dew pearls
+    // Floating bioluminescent dew pearls on the flanks
     vec3 q_orb = p - cam_p;
-    q_orb.xz = mod(q_orb.xz + vec2(7.0), 14.0) - vec2(7.0);
-    q_orb.y = p.y - (0.4 + 0.8 * sin(p.z * 0.35 + time * 1.3));
-    float d_orb = length(q_orb) - (0.95 + dilation * 0.50 + mids * 0.30);
+    q_orb.x = abs(q_orb.x) - 5.2;
+    q_orb.z = mod(q_orb.z + 7.0, 14.0) - 7.0;
+    q_orb.y = p.y - (1.2 + 0.3 * sin(p.z * 0.35 + beat_phase * 0.4));
+    float d_orb = length(q_orb) - (1.0 + dilation * 0.50 + mids * 0.30);
 
-    // Floating torus rings
-    vec3 q_ring = p - cam_p;
-    q_ring.xz = mod(q_ring.xz + vec2(7.0), 14.0) - vec2(7.0);
-    q_ring.y = p.y - 1.4;
-    vec2 t_ring = vec2(length(q_ring.xz) - 1.8, q_ring.y);
-    float d_ring = length(t_ring) - 0.09;
-
-    float d_floating = min(d_orb, d_ring);
-    return smin(d_ocean, d_floating, 1.10);
+    return smin(d_ocean, d_orb, 1.10);
 }
 
 // =============================================================================
-// BIOME 2: Razor Crystal & Obsidian Spikes (Metal, Rock, Hand of Blood)
-// Espacio roto con espinas afiladas de obsidiana, monolitos y fractales angulares
+// BIOME 2: Obsidian Fracture & Magma Spires (Metal, Hard Rock, Hand of Blood)
+// Crystalline obsidian colonnades and aggressive magma ground spikes
 // =============================================================================
-float sdf_crystal(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
-    vec3 q_grid = p - cam_p;
-    q_grid = mod(q_grid + vec3(6.0), 12.0) - vec3(6.0);
-
-    // Rotating sharp razor quartz monolith
-    vec3 q_mono = q_grid;
-    q_mono.xy = rot(p.z * 0.35 + time * 0.5) * q_mono.xy;
-    q_mono.yz = rot(p.x * 0.30 + time * 0.4) * q_mono.yz;
+float sdf_metal(vec3 p, vec3 cam_p, float dilation, float mids, float time, float beat_phase) {
+    // Grand Lateral Obsidian Colonnade (|x| >= 6.2)
+    vec3 q_mono = p - cam_p;
+    q_mono.z = mod(q_mono.z + 6.0, 12.0) - 6.0;
+    q_mono.x = abs(q_mono.x) - 6.2;
+    q_mono.xy = rot(p.z * 0.20 + mids * 0.5 + time * 0.04) * q_mono.xy;
     
-    vec3 d_shard = abs(q_mono) - vec3(0.50 + mids * 0.25, 0.50 + mids * 0.25, 2.4 + dilation * 0.7);
+    vec3 d_shard = abs(q_mono) - vec3(0.70 + mids * 0.45, 0.70 + mids * 0.45, 3.8 + dilation * 1.2);
     float d_monolith = max(d_shard.x, max(d_shard.y, d_shard.z));
 
-    // Floor of razor obsidian spikes surging with double-bass kicks
-    float spike_ground = p.y - (-2.6 + 0.8 * abs(sin(p.x * 1.2) * cos(p.z * 1.2)) * (1.0 + dilation * 1.5));
+    // Lateral razor ground spikes on the flanks sculpted by bass and mids
+    float flank_dist = max(abs(p.x - cam_p.x) - 3.5, 0.0);
+    float spike_height = abs(sin(p.x * 1.4) * cos(p.z * 1.4)) * (0.6 + dilation * 1.8 + mids * 1.0);
+    float spike_ground = p.y - (-2.6 + spike_height * smoothstep(0.0, 2.0, flank_dist));
 
-    // Floating crystal shrapnel
-    vec3 q_shrap = abs(q_grid) - vec3(2.2 + dilation * 0.6);
-    float d_shrapnel = length(max(q_shrap, 0.0)) - 0.25;
-
-    return min(d_monolith, min(spike_ground, d_shrapnel));
+    return min(d_monolith, spike_ground);
 }
 
 // =============================================================================
-// BIOME 3: Cyber Matrix & Neon Equalizer City (Dubstep, Techno, Trap Drops)
-// Megaciudad cuántica con ecualizadores gigantes que emergen del suelo
+// BIOME 3: Quantum Matrix & Equalizer Skyscraper City (Dubstep, Techno, EDM)
+// Towering equalizer skyscrapers and quantum gate arches overhead
 // =============================================================================
-float sdf_cyber(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
-    vec2 q_xy = abs(p.xy - cam_p.xy);
-    float d_corridor = (3.8 + dilation * 0.6) - max(q_xy.x, q_xy.y);
+float sdf_cyber(vec3 p, vec3 cam_p, float dilation, float mids) {
+    // Open grid highway floor
+    float d_floor = p.y - (-2.4 - dilation * 0.3);
 
-    // Giant Audio-Reactive Equalizer Towers rising from floor & ceiling
+    // Audio-Reactive Equalizer Towers rising on the lateral flanks
     vec3 q_eq = p - cam_p;
-    q_eq.z = mod(q_eq.z + 1.8, 3.6) - 1.8;
-    float eq_height = 0.6 + 2.2 * (dilation * 1.4 + mids * 0.8) * abs(sin(floor((p.z - cam_p.z) / 3.6) * 1.4 + time * 5.0));
-    vec3 d_eq_box = abs(vec3(abs(q_eq.x) - 3.0, abs(q_eq.y) - (3.6 - eq_height * 0.5), q_eq.z)) - vec3(0.40, eq_height * 0.5, 0.40);
+    float tower_idx = floor((p.z + 2.5) / 5.0);
+    q_eq.z = mod(q_eq.z + 2.5, 5.0) - 2.5;
+    
+    float tower_seed = hash3(vec3(tower_idx, sign(p.x), 1.0));
+    float eq_height = 0.6 + (dilation * 3.5 + mids * 2.0) * (0.35 + 0.65 * tower_seed);
+    
+    vec3 d_eq_box = abs(vec3(abs(q_eq.x) - 5.5, q_eq.y - (-2.4 + eq_height * 0.5), q_eq.z)) - vec3(0.70, eq_height * 0.5, 0.70);
     float d_eq = max(d_eq_box.x, max(d_eq_box.y, d_eq_box.z));
 
-    // Periodic Quantum Accelerator Gate Rings every 6 meters
-    vec3 q_ring = p - cam_p;
-    q_ring.z = mod(p.z + 3.0, 6.0) - 3.0;
-    float ring_body = abs(length(q_ring.xy) - (3.2 + dilation * 0.4)) - 0.14;
-    float d_ring = max(ring_body, abs(q_ring.z) - 0.22);
+    // Quantum Gate Arches overhead every 10 meters
+    vec3 q_arch = p - cam_p;
+    q_arch.z = mod(p.z + 5.0, 10.0) - 5.0;
+    float arch_body = abs(length(vec2(q_arch.x, max(q_arch.y + 1.0, 0.0))) - (4.2 + dilation * 0.4)) - 0.18;
+    float d_arch = max(arch_body, abs(q_arch.z) - 0.25);
 
-    // 4 Neon Energy Conduit Rails
-    vec2 q_rails = abs(p.xy - cam_p.xy) - vec2(2.6);
-    float d_rails = length(q_rails) - 0.12;
-
-    float d_tech = min(d_ring, min(d_rails, d_eq));
-    return min(d_corridor, d_tech);
+    return min(d_floor, min(d_eq, d_arch));
 }
 
 // =============================================================================
-// Trilateral Barycentric Distance Map
+// BIOME 4: Ethereal Nebula & Floating Celestial Rings (Symphonic, Dreamy)
+// Floating concentric golden rings of light and astral obelisks
+// =============================================================================
+float sdf_ethereal(vec3 p, vec3 cam_p, float dilation, float mids, float time, float beat_phase) {
+    // Floating Concentric Golden Rings of Light
+    vec3 q_ring = p - cam_p;
+    q_ring.z = mod(p.z + 6.0, 12.0) - 6.0;
+    q_ring.xy = rot(beat_phase * 0.20 + time * 0.03) * q_ring.xy;
+    vec2 t1 = vec2(length(q_ring.xy) - (3.4 + mids * 0.7), abs(q_ring.z) - 0.15);
+    float d_ring1 = length(t1) - 0.10;
+
+    // Floating Golden Obelisks on the sides
+    vec3 q_obelisk = p - cam_p;
+    q_obelisk.x = abs(q_obelisk.x) - 5.8;
+    q_obelisk.z = mod(q_obelisk.z + 5.0, 10.0) - 5.0;
+    q_obelisk.y = p.y - 1.2;
+    vec3 d_ob_box = abs(q_obelisk) - vec3(0.40, 3.2 + dilation * 0.8 + mids * 0.4, 0.40);
+    float d_obelisk = max(d_ob_box.x, max(d_ob_box.y, d_ob_box.z));
+
+    return min(d_ring1, d_obelisk);
+}
+
+// =============================================================================
+// BIOME 5: Psychedelic Acid Funk & Jelly Hyper-Tubes (Snarez / Frog Family)
+// Bouncy undulating floor & jumping metaballs locked to tempo & bassline
+// =============================================================================
+float sdf_funk(vec3 p, vec3 cam_p, float dilation, float mids, float beat_phase) {
+    // Bouncy jelly ground sculpted by funky bassline
+    float funk_wave = sin(p.x * 0.8 + beat_phase * 0.5) * sin(p.z * 0.6 + beat_phase * 0.3) * (dilation * 1.1 + mids * 0.7);
+    float funk_y = -2.2 + funk_wave;
+    float d_funk_ground = p.y - funk_y;
+
+    // Morphing funky bouncing metaballs locked to tempo
+    vec3 q_jelly = p - cam_p;
+    q_jelly.x = abs(q_jelly.x) - 4.5;
+    q_jelly.z = mod(q_jelly.z + 5.0, 10.0) - 5.0;
+    float bounce = abs(sin(beat_phase * 0.5 + p.z * 0.2)) * (0.4 + dilation * 0.9);
+    q_jelly.y = p.y - (0.8 + bounce);
+    float d_jelly = length(q_jelly) - (0.85 + dilation * 0.60 + mids * 0.35);
+
+    // Twisted Chromatic Corkscrew Arches overhead
+    vec3 q_arch = p - cam_p;
+    q_arch.z = mod(p.z + 4.0, 8.0) - 4.0;
+    q_arch.xy = rot(p.z * 0.25 + beat_phase * 0.25) * q_arch.xy;
+    float d_arch = abs(length(q_arch.xy) - (3.6 + dilation * 0.4)) - 0.20;
+
+    return smin(d_funk_ground, min(d_jelly, d_arch), 0.80);
+}
+
+// =============================================================================
+// Master 5-Biome Barycentric Distance Map
 // =============================================================================
 float map(vec3 p) {
     float time = u_resolution_time.z;
     vec3 cam_p = u_cam_pos.xyz;
 
-    float w_liquid  = u_biome_weights.x;
-    float w_crystal = u_biome_weights.y;
-    float w_cyber   = u_biome_weights.z;
+    float w_ocean    = u_biome_weights_1.x;
+    float w_metal    = u_biome_weights_1.y;
+    float w_cyber    = u_biome_weights_1.z;
+    float w_ethereal = u_biome_weights_1.w;
+    float w_funk     = u_biome_weights_2.x;
 
-    float dilation  = u_physical_params.x;
-    float ripple    = u_physical_params.y;
-    float mids      = u_extra_physics.x;
-    float is_silent = u_extra_physics.z;
+    float dilation   = u_physical_params.x;
+    float ripple     = u_physical_params.y;
+    float mids       = u_physical_params.w;
+    float is_silent  = u_extra_params.x;
+    float beat_phase = u_extra_params.z;
 
-    // Evaluate the 3 biomes
-    float d_l = sdf_liquid(p, cam_p, dilation, mids, is_silent, time);
-    float d_x = sdf_crystal(p, cam_p, dilation, mids, time);
-    float d_c = sdf_cyber(p, cam_p, dilation, mids, time);
+    // Evaluate the 5 biomes (all sculpted by audio forces)
+    float d_o = sdf_ocean(p, cam_p, dilation, mids, is_silent, beat_phase);
+    float d_m = sdf_metal(p, cam_p, dilation, mids, time, beat_phase);
+    float d_c = sdf_cyber(p, cam_p, dilation, mids);
+    float d_e = sdf_ethereal(p, cam_p, dilation, mids, time, beat_phase);
+    float d_f = sdf_funk(p, cam_p, dilation, mids, beat_phase);
 
-    // Trilateral Barycentric Blending
-    float d_interpolated = w_liquid * d_l + w_crystal * d_x + w_cyber * d_c;
+    // 5-Way Barycentric Interpolation
+    float d_interpolated = w_ocean * d_o + w_metal * d_m + w_cyber * d_c + w_ethereal * d_e + w_funk * d_f;
 
-    // Transient Onset Shockwave Ripple
+    // Transient Onset Shockwave
     if (ripple > 0.01) {
         float r = length(p - cam_p);
-        float shock = sin(r * 4.0 - time * 18.0) * exp(-0.25 * r) * ripple * 0.60;
+        float shock = sin(r * 2.5 - beat_phase * 2.0) * exp(-0.20 * r) * ripple * 0.65;
         d_interpolated += shock;
     }
 
@@ -178,43 +222,45 @@ float calcAO(vec3 p, vec3 n) {
     float occ = 0.0;
     float sca = 1.0;
     for (int i = 0; i < 5; ++i) {
-        float h = 0.03 + 0.18 * float(i) / 4.0;
+        float h = 0.04 + 0.20 * float(i) / 4.0;
         float d = map(p + h * n);
         occ += (h - d) * sca;
         sca *= 0.80;
     }
-    return clamp(1.0 - 1.5 * occ, 0.0, 1.0);
+    return clamp(1.0 - 1.4 * occ, 0.0, 1.0);
 }
 
 // Smooth Spherical Starfield & Celestial Sky
-vec3 getSkyColor(vec3 rd, float base_hue, float arousal, float is_silent, float w_crystal, float w_cyber) {
+vec3 getSkyColor(vec3 rd, float base_hue, float arousal, float is_silent, float w_metal, float w_cyber, float w_funk) {
     float horizon = smoothstep(-0.2, 0.45, rd.y);
     
     // Ambient night sky colored by genre
     vec3 zenith_color = vec3(0.008, 0.012, 0.024);
-    if (w_crystal > 0.5) {
-        zenith_color = vec3(0.025, 0.006, 0.018); // Dark crimson/violet space for Metal
-    } else if (w_cyber > 0.5) {
-        zenith_color = vec3(0.006, 0.018, 0.035); // Electric dark cyan space for Cyber
+    if (w_metal > 0.35) {
+        zenith_color = vec3(0.035, 0.008, 0.025); // Dark crimson/violet space for Metal
+    } else if (w_cyber > 0.35) {
+        zenith_color = vec3(0.008, 0.022, 0.045); // Electric dark cyan space for Cyber
+    } else if (w_funk > 0.35) {
+        zenith_color = vec3(0.025, 0.030, 0.008); // Acid lime/yellow cosmos for Funk
     }
 
-    vec3 horizon_color = hsv2rgb(vec3(base_hue, 0.65, mix(0.18 + arousal * 0.08, 0.06, is_silent)));
+    vec3 horizon_color = hsv2rgb(vec3(base_hue, 0.65, mix(0.24 + arousal * 0.10, 0.08, is_silent)));
     vec3 sky = mix(horizon_color, zenith_color, horizon);
 
     // Spherical 3D Stars
     vec3 star_dir = normalize(rd);
     float star_val = hash3(floor(star_dir * 120.0));
     if (star_val > 0.988) {
-        float blink = sin(star_val * 80.0 + u_resolution_time.z * 2.5) * 0.5 + 0.5;
+        float blink = sin(star_val * 80.0 + u_resolution_time.z * 1.5) * 0.5 + 0.5;
         float star_brightness = smoothstep(0.988, 1.0, star_val) * blink;
         sky += vec3(star_brightness * 0.95);
     }
 
     // Upper Aurora Ribbon
     if (rd.y > 0.1) {
-        float aurora_wave = sin(rd.x * 6.0 + u_resolution_time.z * 0.4) * cos(rd.z * 4.0);
+        float aurora_wave = sin(rd.x * 6.0 + u_resolution_time.z * 0.2) * cos(rd.z * 4.0);
         float aurora_band = smoothstep(0.3, 0.6, rd.y + aurora_wave * 0.15) * smoothstep(0.8, 0.5, rd.y);
-        vec3 aurora_color = hsv2rgb(vec3(fract(base_hue + 0.35), 0.75, 0.30 * (1.0 - is_silent * 0.8)));
+        vec3 aurora_color = hsv2rgb(vec3(fract(base_hue + 0.35), 0.75, 0.35 * (1.0 - is_silent * 0.8)));
         sky += aurora_color * aurora_band * 0.6;
     }
 
@@ -235,35 +281,38 @@ void main() {
     vec3 rd = normalize(fwd + (uv.x * right + uv.y * up) * tan(fov * 0.5));
 
     float time = u_resolution_time.z;
-    float w_liquid  = u_biome_weights.x;
-    float w_crystal = u_biome_weights.y;
-    float w_cyber   = u_biome_weights.z;
-    float valence   = u_biome_weights.w;
+    float w_ocean    = u_biome_weights_1.x;
+    float w_metal    = u_biome_weights_1.y;
+    float w_cyber    = u_biome_weights_1.z;
+    float w_ethereal = u_biome_weights_1.w;
+    float w_funk     = u_biome_weights_2.x;
 
     float emission_pulse = u_physical_params.z;
-    float spec_centroid  = u_physical_params.w;
-    float arousal        = u_laser_pos.w;
-    float is_silent      = u_extra_physics.z;
+    float melodic_mids   = u_physical_params.w;
+    float spec_centroid  = u_biome_weights_2.w;
+    float arousal        = u_biome_weights_2.z;
+    float is_silent      = u_extra_params.x;
 
-    // Synesthetic color palette by genre
+    // Synesthetic color palette by 5 specialized genres
     float base_hue = 0.0;
-    if (w_crystal > 0.5) {
-        // Metal / Crystal: Crimson / Deep Violet / Obsidian (0.85 -> 0.05)
-        base_hue = fract(0.92 + spec_centroid * 0.15 + time * 0.003);
-    } else if (w_cyber > 0.5) {
-        // Dubstep / Cyber: Electric Cyan / Neon Magenta (0.50 -> 0.85)
-        base_hue = fract(0.52 + spec_centroid * 0.30 + time * 0.005);
+    if (w_metal > 0.35) {
+        base_hue = fract(0.92 + spec_centroid * 0.15 + time * 0.002);
+    } else if (w_cyber > 0.35) {
+        base_hue = fract(0.52 + spec_centroid * 0.30 + time * 0.003);
+    } else if (w_funk > 0.35) {
+        base_hue = fract(0.24 + spec_centroid * 0.35 + time * 0.004);
+    } else if (w_ethereal > 0.35) {
+        base_hue = fract(0.12 + spec_centroid * 0.20 + time * 0.002);
     } else {
-        // Lofi / Liquid: Warm Sunset Amber / Jade Green (0.08 -> 0.40)
-        base_hue = fract(0.10 + spec_centroid * 0.30 + time * 0.004);
+        base_hue = fract(0.10 + spec_centroid * 0.30 + time * 0.002);
     }
 
-    float sat = mix(0.85, 0.30, w_crystal);
-    float val = (0.70 + emission_pulse * 0.30) * (1.0 - is_silent * 0.6);
+    float sat = mix(0.85, 0.35, w_metal);
+    float val = (0.75 + emission_pulse * 0.35) * (1.0 - is_silent * 0.6);
     vec3 synesthetic_color = hsv2rgb(vec3(base_hue, sat, val));
 
     // Deep cosmic background sky
-    vec3 sky_color = getSkyColor(rd, base_hue, arousal, is_silent, w_crystal, w_cyber);
+    vec3 sky_color = getSkyColor(rd, base_hue, arousal, is_silent, w_metal, w_cyber, w_funk);
 
     // Raymarching loop
     float t = 0.05;
@@ -273,14 +322,17 @@ void main() {
     bool hit = false;
 
     vec3 accum_glow = vec3(0.0);
+    vec3 laser_pos = u_laser_extra.xyz;
 
     for (int i = 0; i < 75; ++i) {
         p = ro + rd * t;
         hit_dist = map(p);
 
-        // Volumetric atmospheric glow
-        float density = 0.008 / (1.0 + hit_dist * hit_dist * 4.0);
-        accum_glow += synesthetic_color * density * (0.5 + emission_pulse * 0.5) * (1.0 - is_silent * 0.7);
+        // Volumetric God Rays & Atmospheric scattering toward laser entity
+        float d_laser = length(p - laser_pos);
+        float god_ray = 1.0 / (1.0 + d_laser * d_laser * 0.10);
+        float density = 0.005 / (1.0 + max(hit_dist, 0.0) * 5.0);
+        accum_glow += synesthetic_color * (density + god_ray * 0.015 * (0.7 + melodic_mids * 1.1)) * (0.6 + emission_pulse * 0.4) * (1.0 - is_silent * 0.7);
 
         if (hit_dist < 0.003) {
             hit = true;
@@ -308,7 +360,6 @@ void main() {
         float ao = calcAO(p, n);
 
         // 3D Point Light from Laser Ribbon Entity
-        vec3 laser_pos = u_laser_pos.xyz;
         vec3 l_dir = laser_pos - p;
         float l_dist = length(l_dir);
         l_dir = normalize(l_dir);
@@ -319,7 +370,7 @@ void main() {
         // Specular highlight
         vec3 view_dir = -rd;
         vec3 half_v = normalize(l_dir + view_dir);
-        float spec_power = mix(24.0, 110.0, w_crystal);
+        float spec_power = mix(24.0, 110.0, w_metal);
         float spec = pow(max(dot(n, half_v), 0.0), spec_power);
 
         // Fresnel reflection
@@ -327,19 +378,19 @@ void main() {
         vec3 iridescence = mix(sky_color, synesthetic_color * 1.3, fresnel);
 
         vec3 albedo = synesthetic_color * 0.60;
-        vec3 laser_light = synesthetic_color * (diff * 2.5 + spec * 3.5) * l_atten * (1.0 - is_silent * 0.8);
-        vec3 ambient = sky_color * (ao * 1.2 + 0.3);
+        vec3 laser_light = synesthetic_color * (diff * 2.2 + spec * 3.2) * l_atten * (1.0 - is_silent * 0.8);
+        vec3 ambient = sky_color * (ao * 1.2 + 0.35);
 
-        scene_color = (albedo * (ambient + laser_light) + iridescence * fresnel * 2.0) * ao;
+        scene_color = (albedo * (ambient + laser_light) + iridescence * fresnel * 1.8) * (ao * ao);
 
         // Depth fog
-        float fog = 1.0 - exp(-t * 0.030);
+        float fog = 1.0 - exp(-t * 0.028);
         scene_color = mix(scene_color, sky_color, fog);
     } else {
         scene_color = sky_color;
     }
 
-    // Additive volumetric glow
+    // Additive volumetric glow & God Rays
     scene_color += accum_glow;
 
     frag_color = vec4(scene_color, 1.0);

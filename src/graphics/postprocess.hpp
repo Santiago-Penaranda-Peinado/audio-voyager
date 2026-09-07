@@ -4,6 +4,7 @@
 #include "graphics/fbo.hpp"
 #include <cstdint>
 #include <memory>
+#include <algorithm>
 
 namespace audio_voyager::graphics {
 
@@ -20,7 +21,11 @@ public:
     void resize(int width, int height);
     void render(uint32_t scene_hdr_tex, int width, int height, 
                 float bloom_intensity, float chromatic_aberration, 
-                float glitch_amount, float speed_lines, float time);
+                float glitch_amount, float speed_lines, float time,
+                float audio_rms = 0.0f, float dt = 0.016f);
+
+    [[nodiscard]] float get_exposure() const noexcept { return smoothed_exposure_; }
+    void set_exposure_instant(float exposure) noexcept { smoothed_exposure_ = exposure; }
 
 private:
     void init_screen_quad();
@@ -35,6 +40,7 @@ private:
     Framebuffer pingpong_fbo_[2];
     int width_{0};
     int height_{0};
+    float smoothed_exposure_{1.0f};
 };
 
 } // namespace audio_voyager::graphics

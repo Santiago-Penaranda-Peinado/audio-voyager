@@ -24,13 +24,12 @@ DIST_DIR="/workspace/dist/audio-voyager-windows"
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR/shaders"
 
-rm -f /workspace/audio_voyager.exe /workspace/bin/audio_voyager.exe || true
-cp -f "$BUILD_DIR/bin/audio_voyager.exe" /workspace/audio_voyager.exe
-cp -f "$BUILD_DIR/bin/audio_voyager.exe" /workspace/bin/audio_voyager.exe
 cp -f "$BUILD_DIR/bin/audio_voyager.exe" "$DIST_DIR/audio_voyager.exe"
-
-# Copy shaders into portable distribution
 cp -r /workspace/shaders/* "$DIST_DIR/shaders/"
+
+# Attempt copy to root workspace
+cp -f "$BUILD_DIR/bin/audio_voyager.exe" /workspace/audio_voyager.exe 2>/dev/null || true
+cp -f "$BUILD_DIR/bin/audio_voyager.exe" /workspace/bin/audio_voyager.exe 2>/dev/null || true
 
 # Create single-click Windows batch launcher
 cat << 'EOF' > "$DIST_DIR/run_audio_voyager.bat"

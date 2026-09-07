@@ -133,21 +133,22 @@ void ParticleSystem::update(float dt, float total_time,
     ubo_data.sim_params[3] = 0.985f;
 
     ubo_data.physics_scales[0] = 1.0f;
-    ubo_data.physics_scales[1] = 1.8f * (1.0f + semantic.weight_crystal * 1.5f);
+    ubo_data.physics_scales[1] = 1.8f * (1.0f + semantic.weight_metal * 1.5f);
     ubo_data.physics_scales[2] = 2.5f;
     ubo_data.physics_scales[3] = 1.2f;
 
-    // Biome-driven particle colors
-    if (semantic.weight_crystal > 0.4f) {
-        ubo_data.color_base[0] = 0.1f; ubo_data.color_base[1] = 0.8f; ubo_data.color_base[2] = 0.5f;
-        ubo_data.color_peak[0] = 1.0f; ubo_data.color_peak[1] = 0.1f; ubo_data.color_peak[2] = 0.2f;
-    } else if (semantic.weight_cyber > 0.4f) {
-        ubo_data.color_base[0] = 0.0f; ubo_data.color_base[1] = 0.7f; ubo_data.color_base[2] = 1.0f;
-        ubo_data.color_peak[0] = 1.0f; ubo_data.color_peak[1] = 0.0f; ubo_data.color_peak[2] = 0.8f;
-    } else {
-        ubo_data.color_base[0] = 0.95f; ubo_data.color_base[1] = 0.65f; ubo_data.color_base[2] = 0.25f;
-        ubo_data.color_peak[0] = 0.35f; ubo_data.color_peak[1] = 0.85f; ubo_data.color_peak[2] = 1.0f;
-    }
+    // Continuous synesthetic particle colors
+    auto hsv_to_rgb = [](float h, float s, float v) -> glm::vec3 {
+        glm::vec4 K(1.0f, 2.0f / 3.0f, 1.0f / 3.0f, 3.0f);
+        glm::vec3 p = glm::abs(glm::fract(glm::vec3(h) + glm::vec3(K.x, K.y, K.z)) * 6.0f - glm::vec3(K.w));
+        return v * glm::mix(glm::vec3(K.x), glm::clamp(p - glm::vec3(K.x), 0.0f, 1.0f), s);
+    };
+
+    glm::vec3 base_col = hsv_to_rgb(semantic.norm_centroid, 0.75f, 0.90f);
+    glm::vec3 peak_col = hsv_to_rgb(std::fmod(semantic.norm_centroid + 0.35f, 1.0f), 0.85f, 1.0f);
+
+    ubo_data.color_base[0] = base_col.r; ubo_data.color_base[1] = base_col.g; ubo_data.color_base[2] = base_col.b;
+    ubo_data.color_peak[0] = peak_col.r; ubo_data.color_peak[1] = peak_col.g; ubo_data.color_peak[2] = peak_col.b;
     ubo_data.color_base[3] = 1.0f;
     ubo_data.color_peak[3] = 0.0f;
 

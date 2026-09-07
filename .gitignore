@@ -5,3 +5,5 @@ compile_commands.json
 .vscode/
 .idea/
 *.user
+/.agents
+ORIGINAL_REQUEST.md

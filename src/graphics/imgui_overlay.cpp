@@ -74,7 +74,7 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
     ImGui::SetNextWindowPos(ImVec2(24, 24), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(440, 640), ImGuiCond_FirstUseEver);
 
-    if (ImGui::Begin("🌌 AUDIO-VOYAGER // SEMANTIC ML & RAYMARCHING DEBUG (F12)", nullptr)) {
+    if (ImGui::Begin("🌌 AUDIO-VOYAGER // 5-BIOME SEMANTIC ML DEBUG (F12)", nullptr)) {
         
         // 1. Performance & Hardware
         if (ImGui::CollapsingHeader("⚡ ENGINE PERFORMANCE", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -84,8 +84,8 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
             ImGui::Separator();
         }
 
-        // 2. The Mind (Machine Learning Biome Inception at 1.0 Hz)
-        if (ImGui::CollapsingHeader("🧠 THE MIND (ML SEMANTIC BIOMES @ 1Hz)", ImGuiTreeNodeFlags_DefaultOpen)) {
+        // 2. The Mind (Machine Learning Biome Inception)
+        if (ImGui::CollapsingHeader("🧠 THE MIND (5-BIOME CONTINUOUS ML)", ImGuiTreeNodeFlags_DefaultOpen)) {
             if (semantic.is_silent) {
                 ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), "Mode: 🌌 QUIESCENCE / ZEN RESTING STATE");
             } else {
@@ -93,10 +93,12 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
             }
             ImGui::Text("Affective Coordinates: Valence %.2f | Arousal %.2f", semantic.valence, semantic.arousal);
             
-            ImGui::Text("Continuous Biome Barycentric Weights:");
-            ImGui::ProgressBar(semantic.weight_liquid,  ImVec2(-1, 0), "SDF_Liquid  (Ocean / Harmonious)");
-            ImGui::ProgressBar(semantic.weight_crystal, ImVec2(-1, 0), "SDF_Crystal (Monolith / Tension)");
-            ImGui::ProgressBar(semantic.weight_cyber,   ImVec2(-1, 0), "SDF_Cyber   (Matrix / Electronic)");
+            ImGui::Text("5-Biome Barycentric Mixture:");
+            ImGui::ProgressBar(semantic.weight_ocean,    ImVec2(-1, 0), "SDF_Ocean    (Silk Sea & Dew / Jazz / Lofi)");
+            ImGui::ProgressBar(semantic.weight_metal,    ImVec2(-1, 0), "SDF_Metal    (Obsidian Colonnade & Spikes / Rock)");
+            ImGui::ProgressBar(semantic.weight_cyber,    ImVec2(-1, 0), "SDF_Cyber    (Equalizer Skyscrapers / EDM / Dubstep)");
+            ImGui::ProgressBar(semantic.weight_ethereal, ImVec2(-1, 0), "SDF_Ethereal (Celestial Rings & Obelisks / Dreamy)");
+            ImGui::ProgressBar(semantic.weight_funk,     ImVec2(-1, 0), "SDF_Funk     (Acid Jelly Ground & Metaballs / Funk)");
             ImGui::Separator();
         }
 
@@ -117,10 +119,11 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
         // 4. Autonomous Kinematics
         if (ImGui::CollapsingHeader("🚀 AUTONOMOUS ART DIRECTOR", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::Text("Cruising Flight Speed: %.2f m/s", semantic.speed_forward);
+            ImGui::Text("Banking Roll: %.2f deg", glm::degrees(semantic.camera_roll));
             ImGui::Separator();
         }
 
-        // 4. Optical Post-Process Overrides
+        // 5. Optical Post-Process Overrides
         if (ImGui::CollapsingHeader("✨ OPTICAL POST-PROCESS CONTROLS", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::SliderFloat("Bloom Intensity", &tuners.bloom_intensity, 0.0f, 3.0f, "%.2f");
             ImGui::SliderFloat("Chromatic Aberration", &tuners.chromatic_aberration, 0.0f, 0.05f, "%.4f");

@@ -12,8 +12,9 @@ uniform float u_glitch_amount;
 uniform float u_speed_lines;
 uniform float u_time;
 uniform vec2 u_resolution;
+uniform float u_exposure;
 
-// ACES Filmic Tone Mapping Curve
+// Calibrated ACES Filmic Tone Mapping Curve (Krzysztof Narkowicz fit with black preservation)
 vec3 ACESFilm(vec3 x) {
     const float a = 2.51;
     const float b = 0.03;
@@ -47,21 +48,19 @@ void main() {
     float b = texture(u_scene_hdr, sample_uv - ca_offset).b;
     vec3 scene_hdr = vec3(r, g, b);
 
-    // Highly responsive Bloom from slider
+    // Thresholded Soft Bloom Addition (Soft-knee filtered specular/laser highlights)
     vec3 bloom = texture(u_bloom_blur, sample_uv).rgb;
-    vec3 composite = scene_hdr + bloom * u_bloom_intensity * 1.5;
+    vec3 composite = scene_hdr + bloom * u_bloom_intensity * 0.95;
 
-    // Eye Adaptation / Dynamic Auto-Exposure
-    float luma = dot(composite, vec3(0.2126, 0.7152, 0.0722));
-    float auto_exposure = 1.0 / sqrt(luma + 0.18);
-    auto_exposure = clamp(auto_exposure, 0.45, 1.35);
-    composite *= auto_exposure;
+    // Global Dynamic Exposure Scaling (Uniform across entire screen, bounded [0.12, 1.35])
+    float exposure = (u_exposure > 0.001) ? clamp(u_exposure, 0.12, 1.35) : 1.0;
+    composite *= exposure;
 
     // Cinematic Vignette
-    float vignette = smoothstep(0.95, 0.35, length(center_offset));
+    float vignette = smoothstep(0.98, 0.38, length(center_offset));
     composite *= vignette;
 
-    // ACES Filmic Tone Mapping & Gamma Correction (Gamma 2.2)
+    // Calibrated ACES Filmic Tonemapping (Non-linear HDR compression without color washing)
     vec3 ldr = ACESFilm(composite);
     vec3 final_color = pow(ldr, vec3(1.0 / 2.2));
 
