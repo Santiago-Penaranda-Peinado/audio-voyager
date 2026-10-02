@@ -80,6 +80,7 @@ void PostProcessPipeline::blur_bloom(uint32_t input_tex, int width, int height) 
 
     bloom_blur_shader_.bind();
     bloom_blur_shader_.set_int("u_image", 0);
+    bloom_blur_shader_.set_float("u_bloom_threshold", 0.80f);
 
     glBindVertexArray(quad_vao_);
 
@@ -87,6 +88,7 @@ void PostProcessPipeline::blur_bloom(uint32_t input_tex, int width, int height) 
         pingpong_fbo_[horizontal ? 1 : 0].bind();
         glViewport(0, 0, blur_w, blur_h);
         bloom_blur_shader_.set_int("u_horizontal", horizontal ? 1 : 0);
+        bloom_blur_shader_.set_int("u_first_iteration", first_iteration ? 1 : 0);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, first_iteration ? input_tex : pingpong_fbo_[horizontal ? 0 : 1].get_texture());

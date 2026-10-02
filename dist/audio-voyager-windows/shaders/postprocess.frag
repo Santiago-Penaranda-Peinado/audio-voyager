@@ -47,14 +47,14 @@ void main() {
     float b = texture(u_scene_hdr, sample_uv - ca_offset).b;
     vec3 scene_hdr = vec3(r, g, b);
 
-    // Highly responsive Bloom from slider
+    // Clean optical bloom compositing
     vec3 bloom = texture(u_bloom_blur, sample_uv).rgb;
-    vec3 composite = scene_hdr + bloom * u_bloom_intensity * 1.5;
+    vec3 composite = scene_hdr + bloom * u_bloom_intensity;
 
-    // Eye Adaptation / Dynamic Auto-Exposure
+    // Eye Adaptation / Dynamic Auto-Exposure (stabilized against whitening)
     float luma = dot(composite, vec3(0.2126, 0.7152, 0.0722));
-    float auto_exposure = 1.0 / sqrt(luma + 0.18);
-    auto_exposure = clamp(auto_exposure, 0.45, 1.35);
+    float auto_exposure = 1.0 / sqrt(luma + 0.22);
+    auto_exposure = clamp(auto_exposure, 0.55, 1.25);
     composite *= auto_exposure;
 
     // Cinematic Vignette

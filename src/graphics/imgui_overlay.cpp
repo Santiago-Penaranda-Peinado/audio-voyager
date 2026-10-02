@@ -94,9 +94,10 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
             ImGui::Text("Affective Coordinates: Valence %.2f | Arousal %.2f", semantic.valence, semantic.arousal);
             
             ImGui::Text("Continuous Biome Barycentric Weights:");
-            ImGui::ProgressBar(semantic.weight_liquid,  ImVec2(-1, 0), "SDF_Liquid  (Ocean / Harmonious)");
-            ImGui::ProgressBar(semantic.weight_crystal, ImVec2(-1, 0), "SDF_Crystal (Monolith / Tension)");
-            ImGui::ProgressBar(semantic.weight_cyber,   ImVec2(-1, 0), "SDF_Cyber   (Matrix / Electronic)");
+            ImGui::ProgressBar(semantic.weight_liquid,  ImVec2(-1, 0), "SDF_Liquid  (Silk Ocean / Jazz / Chill)");
+            ImGui::ProgressBar(semantic.weight_metal,   ImVec2(-1, 0), "SDF_Metal   (Obsidian Chasm / Rock)");
+            ImGui::ProgressBar(semantic.weight_cyber,   ImVec2(-1, 0), "SDF_Cyber   (Matrix Highway / Techno)");
+            ImGui::ProgressBar(semantic.weight_dubstep, ImVec2(-1, 0), "SDF_Dubstep (Bass Abyss / Speedcore)");
             ImGui::Separator();
         }
 
@@ -115,8 +116,9 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
         }
 
         // 4. Autonomous Kinematics
-        if (ImGui::CollapsingHeader("🚀 AUTONOMOUS ART DIRECTOR", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::CollapsingHeader("🚀 AUTONOMOUS ART DIRECTOR (6DoF)", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::Text("Cruising Flight Speed: %.2f m/s", semantic.speed_forward);
+            ImGui::Text("Camera Bank / Roll:    %.1f deg", glm::degrees(semantic.camera_roll));
             ImGui::Separator();
         }
 

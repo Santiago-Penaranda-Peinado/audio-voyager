@@ -217,6 +217,24 @@ void StreamBPhysics::process_frame(const float* frame, size_t frame_size, core::
     out_snapshot.energy = std::clamp(sum_energy / static_cast<float>(frame_size) * 10.0f, 0.0f, 1.0f);
     out_snapshot.rms = std::clamp(std::sqrt(sum_energy / static_cast<float>(frame_size)), 0.0f, 1.0f);
 
+    // E. Multi-band frequency decomposition for physical reaction
+    const float bin_hz_dec = static_cast<float>(sample_rate_) / static_cast<float>(frame_size);
+    float sum_sub = 0.0f, sum_bass = 0.0f, sum_mids = 0.0f, sum_treble = 0.0f, sum_air = 0.0f;
+    for (size_t k = 1; k < num_bins; ++k) {
+        float f = static_cast<float>(k) * bin_hz_dec;
+        float mag = magnitude_spectrum_[k];
+        if (f < 80.0f) sum_sub += mag;
+        else if (f < 250.0f) sum_bass += mag;
+        else if (f < 2500.0f) sum_mids += mag;
+        else if (f < 8000.0f) sum_treble += mag;
+        else if (f < 20000.0f) sum_air += mag;
+    }
+    out_snapshot.band_sub_bass = std::clamp(sum_sub * 0.4f, 0.0f, 1.0f);
+    out_snapshot.band_bass     = std::clamp(sum_bass * 0.35f, 0.0f, 1.0f);
+    out_snapshot.band_mids     = std::clamp(sum_mids * 0.25f, 0.0f, 1.0f);
+    out_snapshot.band_treble   = std::clamp(sum_treble * 0.20f, 0.0f, 1.0f);
+    out_snapshot.band_air      = std::clamp(sum_air * 0.30f, 0.0f, 1.0f);
+
     // Save previous spectrum for next flux calculation
     prev_magnitude_spectrum_ = magnitude_spectrum_;
 

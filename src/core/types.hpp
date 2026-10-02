@@ -71,9 +71,11 @@ struct PhysicsAudioState {
 // Continuous Semantic Vector for Raymarching Biomes and Autonomous Direction
 struct AudioSemanticVector {
     // 1. THE MIND: Continuous Biome Weights (Inferred via ML, Sum = 1.0)
-    float weight_liquid{0.34f};   // P(Acoustic, Organic, Harmonious Ocean)
-    float weight_crystal{0.33f};  // P(Tonal Tension, High Dissonance, Monolith Void)
-    float weight_cyber{0.33f};    // P(Electronic, Heavy Beat, Cyber Matrix)
+    float weight_liquid{0.25f};   // P(Jazz, Lofi, Ambient, Silk Ocean)
+    float weight_metal{0.25f};    // P(Metal, Heavy Rock, Hand of Blood, Obsidian Spire Chasm)
+    float weight_crystal{0.25f};  // Alias/Tension: synced with weight_metal
+    float weight_cyber{0.25f};    // P(Electronic, Techno, Synthwave, Cyber Highway)
+    float weight_dubstep{0.25f};  // P(Dubstep, Speedcore, Skrillex, Camellia, Quantum Bass Void)
     float valence{0.5f};          // Emotional Valence [0.0 = dark/tense, 1.0 = bright/euphoric]
     float arousal{0.5f};          // Physiological Arousal [0.0 = calm, 1.0 = intense]
 
@@ -89,6 +91,7 @@ struct AudioSemanticVector {
 
     // 3. Autonomous Kinematics
     float speed_forward{1.3f};     // Camera cruising speed (m/s)
+    float camera_roll{0.0f};       // Camera bank / roll angle (radians)
     float bpm{120.0f};             // Detected Tempo
     float bpm_confidence{0.5f};    // Tempo Confidence (decays to 0 on silence)
 };
@@ -103,7 +106,7 @@ struct PhysicsTuners {
     float point_size_scale{1.0f};
     float decay_rate{4.5f};
 
-    float bloom_intensity{0.45f};
+    float bloom_intensity{0.30f};
     float chromatic_aberration{0.015f};
     float speed_multiplier{1.0f};
 

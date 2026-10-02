@@ -9,11 +9,13 @@
 namespace audio_voyager::brain {
 
 struct MLClassificationResult {
-    float prob_liquid{1.0f};   // P(Acoustic, Organic, Harmonious)
-    float prob_crystal{0.0f};  // P(Tonal Tension, High Dissonance, Metallic)
-    float prob_cyber{0.0f};    // P(Electronic, High-Energy Synth, Steady Beat)
-    float valence{0.5f};       // Emotional Valence [0.0 = dark/tense, 1.0 = bright/euphoric]
-    float arousal{0.5f};       // Physiological Arousal [0.0 = calm, 1.0 = intense]
+    float prob_liquid{0.25f};   // P(Acoustic, Organic, Harmonious Jazz/Lofi)
+    float prob_metal{0.25f};    // P(Metal, Heavy Rock, Hand of Blood, Obsidian Spire Chasm)
+    float prob_crystal{0.25f};  // Alias/Tension: kept synced with prob_metal
+    float prob_cyber{0.25f};    // P(Electronic, High-Energy Synth, Steady Techno Beat)
+    float prob_dubstep{0.25f};  // P(Dubstep, Speedcore, Skrillex, Camellia, Quantum Bass Void)
+    float valence{0.5f};        // Emotional Valence [0.0 = dark/tense, 1.0 = bright/euphoric]
+    float arousal{0.5f};        // Physiological Arousal [0.0 = calm, 1.0 = intense]
 };
 
 class SemanticClassifierML {

@@ -19,7 +19,7 @@ struct alignas(16) RaymarchingUboData {
     float cam_pos[4];           // xyz: camera pos, w: camera roll
     float cam_dir[4];           // xyz: forward dir, w: dynamic FOV
     float cam_up[4];            // xyz: up vector, w: camera speed
-    float biome_weights[4];     // x: weight_liquid, y: weight_crystal, z: weight_cyber, w: valence
+    float biome_weights[4];     // x: weight_liquid, y: weight_metal, z: weight_cyber, w: weight_dubstep
     float physical_params[4];   // x: elastic_dilation, y: surface_ripple, z: emission_pulse, w: norm_centroid
     float laser_pos[4];         // xyz: laser light pos, w: arousal
     float extra_physics[4];     // x: melodic_mids, y: treble_sparkle, z: is_silent, w: bpm

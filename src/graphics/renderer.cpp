@@ -171,10 +171,11 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
 
     // 1. Semantic Brain: Asynchronous ML & Real-time Multi-Band DSP Fusion
     brain_.update(audio_state, dt);
-    const core::AudioSemanticVector& semantic = brain_.get_semantic_vector();
+    core::AudioSemanticVector semantic = brain_.get_semantic_vector();
 
     // 2. Autonomous Art Director: Dynamic Rhythmic Head-Bobbing & Clamped Altitudes
     director_.update(semantic, dt * tuners_.speed_multiplier);
+    semantic.camera_roll = director_.get_camera_roll();
     glm::mat4 view_proj = director_.get_view_projection_matrix(aspect);
     glm::vec3 cam_pos = director_.get_camera_pos();
     glm::vec3 cam_dir = director_.get_camera_dir();
@@ -187,9 +188,12 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
         std::cout << "[AutonomousArtDirector AUDIT] Pos: (" 
                   << std::fixed << std::setprecision(2) << cam_pos.x << ", " << cam_pos.y << ", " << cam_pos.z << ")"
                   << " | Biomes: [L: " << semantic.weight_liquid 
-                  << " | X: " << semantic.weight_crystal 
-                  << " | C: " << semantic.weight_cyber << "]"
+                  << " | M: " << semantic.weight_metal 
+                  << " | C: " << semantic.weight_cyber 
+                  << " | D: " << semantic.weight_dubstep << "]"
                   << " | Speed: " << semantic.speed_forward << " m/s"
+                  << " | Roll: " << std::setprecision(1) << glm::degrees(director_.get_camera_roll()) << " deg"
+                  << " | BPM: " << semantic.bpm << " (" << static_cast<int>(semantic.bpm_confidence * 100.0f) << "%)"
                   << (semantic.is_silent ? " [QUIESCENCE / SILENCE]" : "") 
                   << " | FPS: " << context_.get_fps() << "\n" << std::flush;
     }
@@ -223,9 +227,9 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     ubo_data.cam_up[3] = semantic.speed_forward;
 
     ubo_data.biome_weights[0] = semantic.weight_liquid;
-    ubo_data.biome_weights[1] = semantic.weight_crystal;
+    ubo_data.biome_weights[1] = semantic.weight_metal;
     ubo_data.biome_weights[2] = semantic.weight_cyber;
-    ubo_data.biome_weights[3] = semantic.valence;
+    ubo_data.biome_weights[3] = semantic.weight_dubstep;
 
     ubo_data.physical_params[0] = semantic.elastic_dilation;
     ubo_data.physical_params[1] = semantic.surface_ripple;

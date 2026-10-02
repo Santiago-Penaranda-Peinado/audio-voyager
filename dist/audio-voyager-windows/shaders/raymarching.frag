@@ -10,7 +10,7 @@ layout(std140, binding = 0) uniform RaymarchingUniforms {
     vec4 u_cam_pos;           // xyz: camera position, w: camera roll
     vec4 u_cam_dir;           // xyz: forward direction, w: dynamic FOV
     vec4 u_cam_up;            // xyz: up vector, w: camera speed
-    vec4 u_biome_weights;     // x: w_liquid, y: w_crystal, z: w_cyber, w: valence
+    vec4 u_biome_weights;     // x: w_liquid, y: w_metal, z: w_cyber, w: w_dubstep
     vec4 u_physical_params;   // x: elastic_dilation, y: surface_ripple, z: emission_pulse, w: norm_centroid
     vec4 u_laser_pos;         // xyz: laser light position, w: arousal
     vec4 u_extra_physics;     // x: melodic_mids, y: treble_sparkle, z: is_silent, w: bpm
@@ -43,8 +43,8 @@ float hash3(vec3 p) {
 }
 
 // =============================================================================
-// BIOME 1: Liquid Silk Ocean (Lofi, Chill, Acoustic, Frog Family)
-// Océano suave con oleaje armónico potente, perlas amigables y cielo ámbar/esmeralda
+// BIOME 1: Liquid Silk Ocean (Jazz, Lofi, Chill, Acoustic, Ambient)
+// Oceano suave con oleaje armonico, perlas bioluminiscentes y anillos dorados
 // =============================================================================
 float sdf_liquid(vec3 p, vec3 cam_p, float dilation, float mids, float is_silent, float time) {
     float wave_scale = 1.0 - is_silent * 0.95;
@@ -56,15 +56,19 @@ float sdf_liquid(vec3 p, vec3 cam_p, float dilation, float mids, float is_silent
     float ocean_y = -2.2 + (wave1 + wave2 + wave_bass);
     float d_ocean = p.y - ocean_y;
 
-    // Floating bioluminescent mercury dew pearls
+    // Floating bioluminescent mercury dew pearls flanking path
     vec3 q_orb = p - cam_p;
     q_orb.xz = mod(q_orb.xz + vec2(7.0), 14.0) - vec2(7.0);
+    // Push away from central flight path
+    float side_shift = sign(q_orb.x) * 3.5;
+    q_orb.x -= side_shift;
     q_orb.y = p.y - (0.4 + 0.8 * sin(p.z * 0.35 + time * 1.3));
     float d_orb = length(q_orb) - (0.95 + dilation * 0.50 + mids * 0.30);
 
-    // Floating torus rings
+    // Floating torus rings flanking
     vec3 q_ring = p - cam_p;
     q_ring.xz = mod(q_ring.xz + vec2(7.0), 14.0) - vec2(7.0);
+    q_ring.x -= side_shift;
     q_ring.y = p.y - 1.4;
     vec2 t_ring = vec2(length(q_ring.xz) - 1.8, q_ring.y);
     float d_ring = length(t_ring) - 0.09;
@@ -74,34 +78,49 @@ float sdf_liquid(vec3 p, vec3 cam_p, float dilation, float mids, float is_silent
 }
 
 // =============================================================================
-// BIOME 2: Razor Crystal & Obsidian Spikes (Metal, Rock, Hand of Blood)
-// Espacio roto con espinas afiladas de obsidiana, monolitos y fractales angulares
+// BIOME 2: Volcanic Obsidian Chasm & Jagged Basalt Spires (Metal, Rock, Hand of Blood)
+// Canon imponente con espinas de obsidiana, monolitos de basalto y lava ardiente
 // =============================================================================
-float sdf_crystal(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
-    vec3 q_grid = p - cam_p;
-    q_grid = mod(q_grid + vec3(6.0), 12.0) - vec3(6.0);
+float sdf_metal(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
+    // 1. Canyon Chasm Walls on left & right
+    float chasm_width = 3.6 + dilation * 0.6;
+    float d_walls = chasm_width - abs(p.x - cam_p.x);
 
-    // Rotating sharp razor quartz monolith
-    vec3 q_mono = q_grid;
-    q_mono.xy = rot(p.z * 0.35 + time * 0.5) * q_mono.xy;
-    q_mono.yz = rot(p.x * 0.30 + time * 0.4) * q_mono.yz;
-    
-    vec3 d_shard = abs(q_mono) - vec3(0.50 + mids * 0.25, 0.50 + mids * 0.25, 2.4 + dilation * 0.7);
+    // 2. Chasm Floor with jagged razor crags surging with double-bass kick drums
+    float ground_crags = abs(sin(p.x * 1.5) * cos(p.z * 1.2)) * (0.8 + dilation * 1.4);
+    float d_ground = p.y - (-2.6 + ground_crags);
+
+    // 3. Towering Obsidian Monoliths & Angular Spires flanking the canyon walls
+    vec3 q_spire = p - cam_p;
+    float side = sign(q_spire.x);
+    if (abs(side) < 0.1) side = 1.0;
+    q_spire.x = abs(q_spire.x) - (3.2 + dilation * 0.5); // strictly outside central corridor
+    q_spire.z = mod(q_spire.z + 4.0, 8.0) - 4.0;
+
+    // Twist with guitar distortion
+    q_spire.xy = rot(p.z * 0.25 + time * 0.4) * q_spire.xy;
+    q_spire.yz = rot(mids * 0.8) * q_spire.yz;
+
+    vec3 d_shard = abs(q_spire) - vec3(0.55 + mids * 0.35, 3.8 + dilation * 0.8, 0.55 + mids * 0.35);
     float d_monolith = max(d_shard.x, max(d_shard.y, d_shard.z));
 
-    // Floor of razor obsidian spikes surging with double-bass kicks
-    float spike_ground = p.y - (-2.6 + 0.8 * abs(sin(p.x * 1.2) * cos(p.z * 1.2)) * (1.0 + dilation * 1.5));
+    // 4. Floating angular dagger shards flanking
+    vec3 q_dagger = abs(p - cam_p) - vec3(2.8 + dilation * 0.4, 0.8, 0.0);
+    q_dagger.z = mod(q_dagger.z + 3.0, 6.0) - 3.0;
+    q_dagger.xy = rot(time * 0.8 + p.z * 0.4) * q_dagger.xy;
+    float d_dagger = max(abs(q_dagger.x) + abs(q_dagger.y) - (0.4 + mids * 0.2), abs(q_dagger.z) - 1.2);
 
-    // Floating crystal shrapnel
-    vec3 q_shrap = abs(q_grid) - vec3(2.2 + dilation * 0.6);
-    float d_shrapnel = length(max(q_shrap, 0.0)) - 0.25;
+    float d_canyon_geom = min(d_walls, min(d_ground, min(d_monolith, d_dagger)));
 
-    return min(d_monolith, min(spike_ground, d_shrapnel));
+    // 5. GUARANTEED 2.4m Safe Flight Corridor around Camera:
+    // Ensures distance is strictly positive at camera position (NEVER black screen!)
+    float d_flight_corridor = length(p.xy - cam_p.xy) - (2.4 + dilation * 0.3);
+    return max(d_canyon_geom, -d_flight_corridor);
 }
 
 // =============================================================================
-// BIOME 3: Cyber Matrix & Neon Equalizer City (Dubstep, Techno, Trap Drops)
-// Megaciudad cuántica con ecualizadores gigantes que emergen del suelo
+// BIOME 3: Cyber Matrix & Neon Highway (Techno, Synthwave, House, Electro Grid)
+// Megaciudad cuantizada con carriles de energia neon y torres ecualizadoras
 // =============================================================================
 float sdf_cyber(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     vec2 q_xy = abs(p.xy - cam_p.xy);
@@ -129,33 +148,73 @@ float sdf_cyber(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
 }
 
 // =============================================================================
-// Trilateral Barycentric Distance Map
+// BIOME 4: Quantum Bass Abyss & Glitch Void (Dubstep, Speedcore, Skrillex, Camellia)
+// Vacio gravitacional con anillos hexagonales de sub-bajo y wobble LFO
+// =============================================================================
+float sdf_dubstep(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
+    // 1. Sub-Bass LFO Wobble Chamber
+    float wobble = sin(p.z * 1.2 - time * 12.0) * (dilation * 0.75);
+    float tunnel_radius = 3.6 + dilation * 0.8 + wobble;
+    float d_void_tunnel = tunnel_radius - length(p.xy - cam_p.xy);
+
+    // 2. Heavy Hexagonal Quantum Gravity Rings every 4 meters
+    vec3 q_ring = p - cam_p;
+    q_ring.z = mod(p.z + 2.0, 4.0) - 2.0;
+    // Hexagonal ring profile
+    vec2 p_hex = abs(q_ring.xy);
+    float hex_dist = max(p_hex.x * 0.866025 + p_hex.y * 0.5, p_hex.y);
+    float d_hex_ring = abs(hex_dist - (3.3 + dilation * 0.6)) - 0.18;
+    float d_ring_segment = max(d_hex_ring, abs(q_ring.z) - 0.26);
+
+    // 3. Pulsating Sub-Bass Monolith Resonators along the perimeter
+    vec3 q_res = abs(p - cam_p);
+    q_res.x -= (3.4 + dilation * 0.5);
+    q_res.z = mod(q_res.z + 3.0, 6.0) - 3.0;
+    vec3 box_dim = vec3(0.45, 1.2 + dilation * 1.5 + mids * 0.6, 0.45);
+    vec3 d_b = abs(q_res) - box_dim;
+    float d_resonator = max(d_b.x, max(d_b.y, d_b.z));
+
+    // 4. Glitch Fractures: Step quantizer along tunnel surface
+    float glitch_step = 0.08 * sin(floor(p.z * 4.0) * 1.7 + time * 15.0) * step(0.4, dilation);
+    d_void_tunnel += glitch_step;
+
+    float d_dub_geom = min(d_void_tunnel, min(d_ring_segment, d_resonator));
+
+    // Flight clearance corridor
+    float d_flight_corridor = length(p.xy - cam_p.xy) - (2.6 + dilation * 0.3);
+    return max(d_dub_geom, -d_flight_corridor);
+}
+
+// =============================================================================
+// 4-Way Barycentric Distance Map
 // =============================================================================
 float map(vec3 p) {
     float time = u_resolution_time.z;
     vec3 cam_p = u_cam_pos.xyz;
 
     float w_liquid  = u_biome_weights.x;
-    float w_crystal = u_biome_weights.y;
+    float w_metal   = u_biome_weights.y;
     float w_cyber   = u_biome_weights.z;
+    float w_dubstep = u_biome_weights.w;
 
     float dilation  = u_physical_params.x;
     float ripple    = u_physical_params.y;
     float mids      = u_extra_physics.x;
     float is_silent = u_extra_physics.z;
 
-    // Evaluate the 3 biomes
+    // Evaluate the 4 distinct biomes
     float d_l = sdf_liquid(p, cam_p, dilation, mids, is_silent, time);
-    float d_x = sdf_crystal(p, cam_p, dilation, mids, time);
+    float d_m = sdf_metal(p, cam_p, dilation, mids, time);
     float d_c = sdf_cyber(p, cam_p, dilation, mids, time);
+    float d_d = sdf_dubstep(p, cam_p, dilation, mids, time);
 
-    // Trilateral Barycentric Blending
-    float d_interpolated = w_liquid * d_l + w_crystal * d_x + w_cyber * d_c;
+    // 4-Way Barycentric Interpolation
+    float d_interpolated = w_liquid * d_l + w_metal * d_m + w_cyber * d_c + w_dubstep * d_d;
 
     // Transient Onset Shockwave Ripple
     if (ripple > 0.01) {
         float r = length(p - cam_p);
-        float shock = sin(r * 4.0 - time * 18.0) * exp(-0.25 * r) * ripple * 0.60;
+        float shock = sin(r * 4.5 - time * 20.0) * exp(-0.25 * r) * ripple * 0.60;
         d_interpolated += shock;
     }
 
@@ -187,16 +246,20 @@ float calcAO(vec3 p, vec3 n) {
 }
 
 // Smooth Spherical Starfield & Celestial Sky
-vec3 getSkyColor(vec3 rd, float base_hue, float arousal, float is_silent, float w_crystal, float w_cyber) {
+vec3 getSkyColor(vec3 rd, float base_hue, float arousal, float is_silent, 
+                 float w_liquid, float w_metal, float w_cyber, float w_dubstep) {
     float horizon = smoothstep(-0.2, 0.45, rd.y);
     
     // Ambient night sky colored by genre
-    vec3 zenith_color = vec3(0.008, 0.012, 0.024);
-    if (w_crystal > 0.5) {
-        zenith_color = vec3(0.025, 0.006, 0.018); // Dark crimson/violet space for Metal
-    } else if (w_cyber > 0.5) {
-        zenith_color = vec3(0.006, 0.018, 0.035); // Electric dark cyan space for Cyber
-    }
+    vec3 zenith_liquid  = vec3(0.008, 0.012, 0.024);
+    vec3 zenith_metal   = vec3(0.030, 0.005, 0.008); // Smoldering volcanic red/black
+    vec3 zenith_cyber   = vec3(0.006, 0.018, 0.035); // Electric cyber cyan/indigo
+    vec3 zenith_dubstep = vec3(0.008, 0.025, 0.018); // Toxic neon green/violet abyss
+
+    vec3 zenith_color = w_liquid  * zenith_liquid + 
+                        w_metal   * zenith_metal + 
+                        w_cyber   * zenith_cyber + 
+                        w_dubstep * zenith_dubstep;
 
     vec3 horizon_color = hsv2rgb(vec3(base_hue, 0.65, mix(0.18 + arousal * 0.08, 0.06, is_silent)));
     vec3 sky = mix(horizon_color, zenith_color, horizon);
@@ -236,34 +299,37 @@ void main() {
 
     float time = u_resolution_time.z;
     float w_liquid  = u_biome_weights.x;
-    float w_crystal = u_biome_weights.y;
+    float w_metal   = u_biome_weights.y;
     float w_cyber   = u_biome_weights.z;
-    float valence   = u_biome_weights.w;
+    float w_dubstep = u_biome_weights.w;
 
     float emission_pulse = u_physical_params.z;
     float spec_centroid  = u_physical_params.w;
     float arousal        = u_laser_pos.w;
     float is_silent      = u_extra_physics.z;
 
-    // Synesthetic color palette by genre
+    // Distinct Synesthetic color palette by genre
     float base_hue = 0.0;
-    if (w_crystal > 0.5) {
-        // Metal / Crystal: Crimson / Deep Violet / Obsidian (0.85 -> 0.05)
-        base_hue = fract(0.92 + spec_centroid * 0.15 + time * 0.003);
-    } else if (w_cyber > 0.5) {
-        // Dubstep / Cyber: Electric Cyan / Neon Magenta (0.50 -> 0.85)
-        base_hue = fract(0.52 + spec_centroid * 0.30 + time * 0.005);
+    if (w_metal > 0.35) {
+        // Metal / Rock (Hand of Blood): Fiery Blood Red / Volcanic Obsidian Crimson (0.97 -> 0.04)
+        base_hue = fract(0.97 + spec_centroid * 0.10 + time * 0.002);
+    } else if (w_dubstep > 0.35) {
+        // Dubstep / Speedcore (Skrillex / Camellia): Toxic Neon Acid Green / Electric Ultraviolet (0.33 -> 0.75)
+        base_hue = fract(0.33 + spec_centroid * 0.40 + time * 0.006);
+    } else if (w_cyber > 0.35) {
+        // Cyber (Techno / Synthwave): Electric Cyan / Neon Magenta (0.52 -> 0.85)
+        base_hue = fract(0.52 + spec_centroid * 0.28 + time * 0.004);
     } else {
-        // Lofi / Liquid: Warm Sunset Amber / Jade Green (0.08 -> 0.40)
-        base_hue = fract(0.10 + spec_centroid * 0.30 + time * 0.004);
+        // Liquid (Jazz / Lofi): Warm Sunset Amber / Jade Green / Gold (0.10 -> 0.40)
+        base_hue = fract(0.10 + spec_centroid * 0.25 + time * 0.003);
     }
 
-    float sat = mix(0.85, 0.30, w_crystal);
+    float sat = mix(0.85, 0.40, w_metal);
     float val = (0.70 + emission_pulse * 0.30) * (1.0 - is_silent * 0.6);
     vec3 synesthetic_color = hsv2rgb(vec3(base_hue, sat, val));
 
     // Deep cosmic background sky
-    vec3 sky_color = getSkyColor(rd, base_hue, arousal, is_silent, w_crystal, w_cyber);
+    vec3 sky_color = getSkyColor(rd, base_hue, arousal, is_silent, w_liquid, w_metal, w_cyber, w_dubstep);
 
     // Raymarching loop
     float t = 0.05;
@@ -278,9 +344,9 @@ void main() {
         p = ro + rd * t;
         hit_dist = map(p);
 
-        // Volumetric atmospheric glow
-        float density = 0.008 / (1.0 + hit_dist * hit_dist * 4.0);
-        accum_glow += synesthetic_color * density * (0.5 + emission_pulse * 0.5) * (1.0 - is_silent * 0.7);
+        // Volumetric atmospheric glow (stabilized, tight density to avoid scene washout)
+        float density = 0.005 / (1.0 + hit_dist * hit_dist * 6.0);
+        accum_glow += synesthetic_color * density * (0.45 + emission_pulse * 0.45) * (1.0 - is_silent * 0.7);
 
         if (hit_dist < 0.003) {
             hit = true;
@@ -290,6 +356,9 @@ void main() {
         t += hit_dist * 0.88;
         if (t >= t_max) break;
     }
+
+    // Clamp volumetric glow to prevent scene whitening during aggressive drops
+    accum_glow = min(accum_glow, vec3(0.85));
 
 #if DEBUG_MODE
     if (hit) {
@@ -319,7 +388,7 @@ void main() {
         // Specular highlight
         vec3 view_dir = -rd;
         vec3 half_v = normalize(l_dir + view_dir);
-        float spec_power = mix(24.0, 110.0, w_crystal);
+        float spec_power = mix(24.0, 110.0, max(w_metal, w_dubstep));
         float spec = pow(max(dot(n, half_v), 0.0), spec_power);
 
         // Fresnel reflection

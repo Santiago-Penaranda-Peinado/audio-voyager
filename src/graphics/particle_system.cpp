@@ -133,18 +133,25 @@ void ParticleSystem::update(float dt, float total_time,
     ubo_data.sim_params[3] = 0.985f;
 
     ubo_data.physics_scales[0] = 1.0f;
-    ubo_data.physics_scales[1] = 1.8f * (1.0f + semantic.weight_crystal * 1.5f);
+    ubo_data.physics_scales[1] = 1.8f * (1.0f + semantic.weight_metal * 1.6f + semantic.weight_dubstep * 2.0f);
     ubo_data.physics_scales[2] = 2.5f;
     ubo_data.physics_scales[3] = 1.2f;
 
     // Biome-driven particle colors
-    if (semantic.weight_crystal > 0.4f) {
-        ubo_data.color_base[0] = 0.1f; ubo_data.color_base[1] = 0.8f; ubo_data.color_base[2] = 0.5f;
-        ubo_data.color_peak[0] = 1.0f; ubo_data.color_peak[1] = 0.1f; ubo_data.color_peak[2] = 0.2f;
-    } else if (semantic.weight_cyber > 0.4f) {
-        ubo_data.color_base[0] = 0.0f; ubo_data.color_base[1] = 0.7f; ubo_data.color_base[2] = 1.0f;
-        ubo_data.color_peak[0] = 1.0f; ubo_data.color_peak[1] = 0.0f; ubo_data.color_peak[2] = 0.8f;
+    if (semantic.weight_metal > 0.35f) {
+        // Metal: Smoldering volcanic embers & fiery sparks
+        ubo_data.color_base[0] = 0.95f; ubo_data.color_base[1] = 0.18f; ubo_data.color_base[2] = 0.05f;
+        ubo_data.color_peak[0] = 1.0f;  ubo_data.color_peak[1] = 0.70f; ubo_data.color_peak[2] = 0.15f;
+    } else if (semantic.weight_dubstep > 0.35f) {
+        // Dubstep / Speedcore: Toxic neon acid & ultraviolet lightning
+        ubo_data.color_base[0] = 0.12f; ubo_data.color_base[1] = 1.0f;  ubo_data.color_base[2] = 0.38f;
+        ubo_data.color_peak[0] = 0.90f; ubo_data.color_peak[1] = 0.15f; ubo_data.color_peak[2] = 1.0f;
+    } else if (semantic.weight_cyber > 0.35f) {
+        // Cyber: Electric cyan & neon magenta
+        ubo_data.color_base[0] = 0.0f;  ubo_data.color_base[1] = 0.75f; ubo_data.color_base[2] = 1.0f;
+        ubo_data.color_peak[0] = 1.0f;  ubo_data.color_peak[1] = 0.05f; ubo_data.color_peak[2] = 0.85f;
     } else {
+        // Liquid: Warm amber & jade aurora
         ubo_data.color_base[0] = 0.95f; ubo_data.color_base[1] = 0.65f; ubo_data.color_base[2] = 0.25f;
         ubo_data.color_peak[0] = 0.35f; ubo_data.color_peak[1] = 0.85f; ubo_data.color_peak[2] = 1.0f;
     }

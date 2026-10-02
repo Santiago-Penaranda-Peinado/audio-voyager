@@ -16,7 +16,7 @@ public:
     [[nodiscard]] glm::vec3 get_camera_pos() const noexcept { return camera_pos_; }
     [[nodiscard]] glm::vec3 get_camera_dir() const noexcept { return camera_dir_; }
     [[nodiscard]] glm::vec3 get_camera_up() const noexcept { return camera_up_; }
-    [[nodiscard]] float get_camera_roll() const noexcept { return 0.0f; }
+    [[nodiscard]] float get_camera_roll() const noexcept { return smooth_roll_; }
     [[nodiscard]] float get_fov_radians() const noexcept { return fov_radians_; }
     [[nodiscard]] glm::vec3 get_laser_pos() const noexcept { return laser_pos_; }
 
@@ -36,6 +36,7 @@ private:
     float fov_radians_{glm::radians(68.0f)};
 
     float smooth_pitch_{0.0f};
+    float smooth_roll_{0.0f};
     float smooth_bob_y_{2.8f};
     float smooth_fov_{glm::radians(68.0f)};
     float smooth_speed_{1.4f};

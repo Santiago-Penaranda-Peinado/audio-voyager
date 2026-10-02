@@ -11,10 +11,7 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 echo "[1/3] Configuring CMake for Windows x86_64..."
-cmake /workspace \
-    -DCMAKE_TOOLCHAIN_FILE=/workspace/toolchain-mingw64.cmake \
-    -DCMAKE_BUILD_TYPE=Release \
-    -GNinja
+cmake /workspace -DCMAKE_TOOLCHAIN_FILE=/workspace/toolchain-mingw64.cmake -DCMAKE_BUILD_TYPE=Release -GNinja
 
 echo "[2/3] Compiling Procedural Gyroid SDF & AGC Semantic Engine..."
 cmake --build "$BUILD_DIR"

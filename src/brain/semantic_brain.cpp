@@ -17,7 +17,7 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     vector_.is_silent = is_silent;
 
     // =========================================================================
-    // 1. LA MENTE: Inferencia de Machine Learning Ágil (~0.6s)
+    // 1. LA MENTE: Inferencia de Machine Learning Ágil (~0.5s)
     // =========================================================================
     if (!is_silent) {
         ml_classifier_.accumulate_frame(audio_state, dt);
@@ -28,22 +28,28 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
 
     // Filtro Leaky Integrator Ágil (tau ~ 1.2s para transiciones vivas entre partes)
     const float alpha_mind = 1.0f - std::exp(-0.85f * dt);
-    smooth_weight_liquid_  += alpha_mind * (ml_result.prob_liquid - smooth_weight_liquid_);
-    smooth_weight_crystal_ += alpha_mind * (ml_result.prob_crystal - smooth_weight_crystal_);
-    smooth_weight_cyber_   += alpha_mind * (ml_result.prob_cyber - smooth_weight_cyber_);
-    smooth_valence_        += alpha_mind * (ml_result.valence - smooth_valence_);
-    smooth_arousal_        += alpha_mind * (ml_result.arousal - smooth_arousal_);
+    smooth_weight_liquid_  += alpha_mind * (ml_result.prob_liquid  - smooth_weight_liquid_);
+    smooth_weight_metal_   += alpha_mind * (ml_result.prob_metal   - smooth_weight_metal_);
+    smooth_weight_crystal_ = smooth_weight_metal_;
+    smooth_weight_cyber_   += alpha_mind * (ml_result.prob_cyber   - smooth_weight_cyber_);
+    smooth_weight_dubstep_ += alpha_mind * (ml_result.prob_dubstep - smooth_weight_dubstep_);
+    smooth_valence_        += alpha_mind * (ml_result.valence      - smooth_valence_);
+    smooth_arousal_        += alpha_mind * (ml_result.arousal      - smooth_arousal_);
 
-    // Normalización baricéntrica estricta (w_l + w_c + w_y = 1.0)
-    float sum_w = smooth_weight_liquid_ + smooth_weight_crystal_ + smooth_weight_cyber_;
+    // Normalización baricéntrica 4-dimensional estricta (w_l + w_m + w_c + w_d = 1.0)
+    float sum_w = smooth_weight_liquid_ + smooth_weight_metal_ + smooth_weight_cyber_ + smooth_weight_dubstep_;
     if (sum_w > 1e-4f) {
-        vector_.weight_liquid  = smooth_weight_liquid_ / sum_w;
-        vector_.weight_crystal = smooth_weight_crystal_ / sum_w;
-        vector_.weight_cyber   = smooth_weight_cyber_ / sum_w;
+        vector_.weight_liquid  = smooth_weight_liquid_  / sum_w;
+        vector_.weight_metal   = smooth_weight_metal_   / sum_w;
+        vector_.weight_crystal = vector_.weight_metal;
+        vector_.weight_cyber   = smooth_weight_cyber_   / sum_w;
+        vector_.weight_dubstep = smooth_weight_dubstep_ / sum_w;
     } else {
-        vector_.weight_liquid  = 0.34f;
-        vector_.weight_crystal = 0.33f;
-        vector_.weight_cyber   = 0.33f;
+        vector_.weight_liquid  = 0.25f;
+        vector_.weight_metal   = 0.25f;
+        vector_.weight_crystal = 0.25f;
+        vector_.weight_cyber   = 0.25f;
+        vector_.weight_dubstep = 0.25f;
     }
     vector_.valence = smooth_valence_;
     vector_.arousal = is_silent ? 0.05f : smooth_arousal_;
@@ -65,7 +71,7 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
         smooth_mids_     += (1.0f - std::exp(-8.0f * dt)) * (0.0f - smooth_mids_);
         smooth_air_      += (1.0f - std::exp(-8.0f * dt)) * (0.0f - smooth_air_);
         smooth_emission_ += (1.0f - std::exp(-5.0f * dt)) * (0.35f - smooth_emission_);
-        smooth_speed_    += (1.0f - std::exp(-4.0f * dt)) * (0.18f - smooth_speed_);
+        smooth_speed_    += (1.0f - std::exp(-4.0f * dt)) * (0.20f - smooth_speed_);
         vector_.is_onset = false;
     } else {
         // 2.1 Dilatación Elástica de Cavidad / Olas (Sub-Bass potente)
@@ -85,7 +91,7 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
         smooth_air_ += (1.0f - std::exp(-35.0f * dt)) * (target_air - smooth_air_);
 
         // 2.5 Pulso de Emisión Volumétrica & HDR Glow
-        float target_emission = 0.7f + raw_energy * 1.6f + (audio_state.stream_b.is_onset ? 0.6f : 0.0f);
+        float target_emission = 0.7f + raw_energy * 1.5f + (audio_state.stream_b.is_onset ? 0.5f : 0.0f);
         smooth_emission_ += (1.0f - std::exp(-18.0f * dt)) * (target_emission - smooth_emission_);
 
         // 2.6 Tono HSV Guiado por Centroide
@@ -94,11 +100,19 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
 
         vector_.is_onset = audio_state.stream_b.is_onset;
 
-        // 2.7 Velocidad Cinemática
-        float target_speed = 1.1f + vector_.arousal * 0.8f + raw_energy * 0.6f;
-        if (vector_.is_onset && raw_energy > 0.4f) {
-            target_speed += 0.65f;
+        // 2.7 Velocidad Cinemática (Amplio rango dinámico 1.0 a 4.8 m/s según género y BPM)
+        float bpm_factor = std::clamp((vector_.bpm - 60.0f) / 140.0f, 0.0f, 1.0f);
+        float genre_base_speed = 
+            vector_.weight_liquid  * 1.25f + 
+            vector_.weight_cyber   * 2.35f + 
+            vector_.weight_metal   * 3.40f + 
+            vector_.weight_dubstep * 3.60f;
+
+        float target_speed = genre_base_speed * (0.80f + 0.35f * bpm_factor) + raw_energy * 0.70f;
+        if (vector_.is_onset && raw_energy > 0.35f) {
+            target_speed += 0.85f * (vector_.weight_metal * 1.2f + vector_.weight_dubstep * 1.4f + 0.4f);
         }
+        target_speed = std::clamp(target_speed, 1.0f, 4.8f);
         smooth_speed_ += (1.0f - std::exp(-6.0f * dt)) * (target_speed - smooth_speed_);
     }
 
@@ -111,51 +125,117 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     vector_.speed_forward    = smooth_speed_;
 
     // =========================================================================
-    // 3. TEMPO / BPM DINÁMICO
+    // 3. TEMPO / BPM DINÁMICO (Autocorrelación normalizada y filtro de resonancia)
     // =========================================================================
     update_bpm(raw_sub_bass, audio_state.stream_b.onset_strength, dt, is_silent);
 }
 
 void SemanticBrain::update_bpm(float sub_bass, float onset_val, float dt, bool is_silent) {
     if (is_silent) {
-        current_bpm_ *= std::exp(-1.8f * dt);
-        current_bpm_conf_ *= std::exp(-3.0f * dt);
+        current_bpm_conf_ *= std::exp(-2.0f * dt);
         vector_.bpm = current_bpm_;
         vector_.bpm_confidence = current_bpm_conf_;
         return;
     }
 
-    time_since_last_beat_ += dt;
-    onset_history_.push_back(sub_bass * 0.7f + onset_val * 0.3f);
-    if (onset_history_.size() > ONSET_HISTORY_SIZE) {
-        onset_history_.pop_front();
-    }
-
-    if (onset_val > 0.45f && time_since_last_beat_ > 0.20f) {
-        float measured_interval = time_since_last_beat_;
-        time_since_last_beat_ = 0.0f;
-
-        if (measured_interval >= 0.25f && measured_interval <= 1.0f) {
-            beat_interval_estimate_ += 0.25f * (measured_interval - beat_interval_estimate_);
+    // 1. Acumular en buffer circular a frecuencia constante ~45 Hz
+    bpm_sample_timer_ += dt;
+    if (bpm_sample_timer_ >= BPM_HOP_INTERVAL) {
+        bpm_sample_timer_ -= BPM_HOP_INTERVAL;
+        float sample_val = onset_val * 1.5f + sub_bass * 0.8f;
+        onset_history_.push_back(sample_val);
+        if (onset_history_.size() > ONSET_HISTORY_SIZE) {
+            onset_history_.pop_front();
         }
     }
 
-    float estimated_bpm = 60.0f / std::clamp(beat_interval_estimate_, 0.25f, 1.0f);
-    current_bpm_ = std::clamp(estimated_bpm, 60.0f, 220.0f);
-
-    float mean_onset = std::accumulate(onset_history_.begin(), onset_history_.end(), 0.0f) / static_cast<float>(onset_history_.size());
-    float variance = 0.0f;
-    for (float val : onset_history_) {
-        float diff = val - mean_onset;
-        variance += diff * diff;
+    // 2. Evaluar autocorrelación periódicamente cada 0.10s
+    bpm_calc_timer_ += dt;
+    if (bpm_calc_timer_ < 0.10f || onset_history_.size() < ONSET_HISTORY_SIZE) {
+        vector_.bpm = current_bpm_;
+        vector_.bpm_confidence = current_bpm_conf_;
+        return;
     }
-    variance /= static_cast<float>(onset_history_.size());
+    bpm_calc_timer_ = 0.0f;
 
-    float pulse_clarity = std::clamp(std::sqrt(variance) * 4.0f, 0.1f, 1.0f);
-    current_bpm_conf_ = std::clamp(pulse_clarity * 1.3f, 0.3f, 0.98f);
+    const size_t n = onset_history_.size();
+    float mean_val = 0.0f;
+    for (float v : onset_history_) mean_val += v;
+    mean_val /= static_cast<float>(n);
+
+    float variance = 0.0f;
+    for (float v : onset_history_) {
+        float d = v - mean_val;
+        variance += d * d;
+    }
+    variance /= static_cast<float>(n);
+
+    if (variance < 1e-4f) {
+        current_bpm_conf_ *= 0.95f;
+        vector_.bpm = current_bpm_;
+        vector_.bpm_confidence = current_bpm_conf_;
+        return;
+    }
+
+    // Rango de BPM: 65 a 215 BPM
+    // Lag min = 60 / (215 * 0.022) = 12 samples
+    // Lag max = 60 / (65 * 0.022) = 42 samples
+    constexpr int MIN_LAG = 12;
+    constexpr int MAX_LAG = 42;
+
+    float best_corr = -1.0f;
+    int best_lag = 23; // ~120 BPM default
+
+    std::vector<float> corr_scores(MAX_LAG + 2, 0.0f);
+
+    for (int lag = MIN_LAG; lag <= MAX_LAG; ++lag) {
+        float sum = 0.0f;
+        int count = 0;
+        for (int i = 0; i < static_cast<int>(n) - lag; ++i) {
+            sum += (onset_history_[i] - mean_val) * (onset_history_[i + lag] - mean_val);
+            count++;
+        }
+        float r = (count > 0) ? (sum / (static_cast<float>(count) * variance)) : 0.0f;
+
+        // Prior gaussiano centrado en 125 BPM para estabilizar armónicos
+        float cand_bpm = 60.0f / (static_cast<float>(lag) * BPM_HOP_INTERVAL);
+        float bpm_diff = (cand_bpm - 125.0f) / 50.0f;
+        float prior = std::exp(-0.5f * bpm_diff * bpm_diff);
+
+        float score = r * (0.65f + 0.35f * prior);
+        corr_scores[lag] = score;
+
+        if (score > best_corr) {
+            best_corr = score;
+            best_lag = lag;
+        }
+    }
+
+    if (best_corr > 0.20f && best_lag > MIN_LAG && best_lag < MAX_LAG) {
+        // Interpolación parabólica sub-muestra
+        float y0 = corr_scores[best_lag - 1];
+        float y1 = corr_scores[best_lag];
+        float y2 = corr_scores[best_lag + 1];
+        float denom = 2.0f * (2.0f * y1 - y0 - y2);
+        float delta = (std::abs(denom) > 1e-5f) ? (y2 - y0) / denom : 0.0f;
+        delta = std::clamp(delta, -0.5f, 0.5f);
+
+        float fine_lag = static_cast<float>(best_lag) + delta;
+        float detected_bpm = 60.0f / (fine_lag * BPM_HOP_INTERVAL);
+        detected_bpm = std::clamp(detected_bpm, 60.0f, 220.0f);
+
+        float confidence = std::clamp(best_corr * 1.5f, 0.2f, 0.98f);
+
+        // Actualización inercial suave
+        float alpha_bpm = 0.15f * confidence;
+        current_bpm_ += alpha_bpm * (detected_bpm - current_bpm_);
+        current_bpm_conf_ += 0.20f * (confidence - current_bpm_conf_);
+    } else {
+        current_bpm_conf_ *= 0.96f;
+    }
 
     vector_.bpm = current_bpm_;
-    vector_.bpm_confidence = current_bpm_conf_;
+    vector_.bpm_confidence = std::clamp(current_bpm_conf_, 0.1f, 1.0f);
 }
 
 } // namespace audio_voyager::brain

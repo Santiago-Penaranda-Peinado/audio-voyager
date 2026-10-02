@@ -26,9 +26,11 @@ private:
     SemanticClassifierML ml_classifier_{};
 
     // Slow temporal integrator for Mind / ML biome weights (tau ~ 3.5s)
-    float smooth_weight_liquid_{0.34f};
-    float smooth_weight_crystal_{0.33f};
-    float smooth_weight_cyber_{0.33f};
+    float smooth_weight_liquid_{0.25f};
+    float smooth_weight_metal_{0.25f};
+    float smooth_weight_crystal_{0.25f};
+    float smooth_weight_cyber_{0.25f};
+    float smooth_weight_dubstep_{0.25f};
     float smooth_valence_{0.5f};
     float smooth_arousal_{0.5f};
 
@@ -41,11 +43,12 @@ private:
     float smooth_centroid_{0.5f};
     float smooth_speed_{1.3f};
 
-    // BPM tracking
-    static constexpr size_t ONSET_HISTORY_SIZE = 128;
+    // BPM autocorrelation tracking
+    static constexpr size_t ONSET_HISTORY_SIZE = 150;
+    static constexpr float BPM_HOP_INTERVAL = 0.022f; // ~45 Hz sampling
     std::deque<float> onset_history_{};
-    float time_since_last_beat_{0.0f};
-    float beat_interval_estimate_{0.5f};
+    float bpm_sample_timer_{0.0f};
+    float bpm_calc_timer_{0.0f};
     float current_bpm_{120.0f};
     float current_bpm_conf_{0.5f};
 };
