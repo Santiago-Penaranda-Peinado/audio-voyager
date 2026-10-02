@@ -56,27 +56,26 @@ float sdf_liquid(vec3 p, vec3 cam_p, float dilation, float mids, float is_silent
     float ocean_y = -2.2 + (wave1 + wave2 + wave_bass);
     float d_ocean = p.y - ocean_y;
 
-    // Floating bioluminescent mercury dew pearls flanking path
+    // Floating bioluminescent mercury dew pearls flanking path (using world p.z so they fly past!)
     vec3 q_orb = p - cam_p;
-    q_orb.xz = mod(q_orb.xz + vec2(7.0), 14.0) - vec2(7.0);
-    // Push away from central flight path
-    float side = sign(q_orb.x);
-    if (abs(side) < 0.1) side = 1.0;
-    float side_shift = side * 3.5;
-    q_orb.x -= side_shift;
+    q_orb.z = mod(p.z + 7.0, 14.0) - 7.0;
+    float side = (q_orb.x >= 0.0) ? 1.0 : -1.0;
+    q_orb.x = abs(q_orb.x) - (4.8 + dilation * 0.6);
     q_orb.y = p.y - (0.4 + 0.8 * sin(p.z * 0.35 + time * 1.3));
     float d_orb = length(q_orb) - (0.95 + dilation * 0.50 + mids * 0.30);
 
-    // Floating torus rings flanking
+    // Floating torus rings flanking (using world p.z)
     vec3 q_ring = p - cam_p;
-    q_ring.xz = mod(q_ring.xz + vec2(7.0), 14.0) - vec2(7.0);
-    q_ring.x -= side_shift;
+    q_ring.z = mod(p.z + 7.0, 14.0) - 7.0;
+    q_ring.x = abs(q_ring.x) - (4.8 + dilation * 0.6);
     q_ring.y = p.y - 1.4;
     vec2 t_ring = vec2(length(q_ring.xz) - 1.8, q_ring.y);
     float d_ring = length(t_ring) - 0.09;
 
     float d_floating = min(d_orb, d_ring);
-    return smin(d_ocean, d_floating, 1.10);
+    float d_liq_geom = smin(d_ocean, d_floating, 1.10);
+    float d_flight_corridor = length(p.xy - cam_p.xy) - (2.2 + dilation * 0.3);
+    return max(d_liq_geom, -d_flight_corridor);
 }
 
 // =============================================================================
@@ -88,16 +87,15 @@ float sdf_metal(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     float chasm_width = 3.6 + dilation * 0.6;
     float d_walls = chasm_width - abs(p.x - cam_p.x);
 
-    // 2. Chasm Floor with jagged razor crags surging with double-bass kick drums
-    float ground_crags = abs(sin(p.x * 1.5) * cos(p.z * 1.2)) * (0.8 + dilation * 1.4);
+    // 2. Chasm Floor with jagged razor crags and glowing magma seams surging with double-bass kicks
+    float ground_crags = abs(sin(p.x * 1.8) * cos(p.z * 1.4)) * (0.8 + dilation * 1.4 + mids * 0.5);
     float d_ground = p.y - (-2.6 + ground_crags);
 
-    // 3. Towering Obsidian Monoliths & Angular Spires flanking the canyon walls
+    // 3. Towering Obsidian Monoliths & Angular Spires (world p.z so they fly past!)
     vec3 q_spire = p - cam_p;
-    float side = sign(q_spire.x);
-    if (abs(side) < 0.1) side = 1.0;
-    q_spire.x = abs(q_spire.x) - (3.2 + dilation * 0.5); // strictly outside central corridor
-    q_spire.z = mod(q_spire.z + 4.0, 8.0) - 4.0;
+    float side = (q_spire.x >= 0.0) ? 1.0 : -1.0;
+    q_spire.x = abs(q_spire.x) - (3.4 + dilation * 0.5); // strictly outside central corridor
+    q_spire.z = mod(p.z + 4.0, 8.0) - 4.0;
 
     // Twist with guitar distortion
     q_spire.xy = rot(p.z * 0.25 + time * 0.4) * q_spire.xy;
@@ -106,9 +104,9 @@ float sdf_metal(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     vec3 d_shard = abs(q_spire) - vec3(0.55 + mids * 0.35, 3.8 + dilation * 0.8, 0.55 + mids * 0.35);
     float d_monolith = max(d_shard.x, max(d_shard.y, d_shard.z));
 
-    // 4. Floating angular dagger shards flanking
+    // 4. Floating angular dagger shards flanking (world p.z)
     vec3 q_dagger = abs(p - cam_p) - vec3(2.8 + dilation * 0.4, 0.8, 0.0);
-    q_dagger.z = mod(q_dagger.z + 3.0, 6.0) - 3.0;
+    q_dagger.z = mod(p.z + 3.0, 6.0) - 3.0;
     q_dagger.xy = rot(time * 0.8 + p.z * 0.4) * q_dagger.xy;
     float d_dagger = max(abs(q_dagger.x) + abs(q_dagger.y) - (0.4 + mids * 0.2), abs(q_dagger.z) - 1.2);
 
@@ -128,14 +126,14 @@ float sdf_cyber(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     vec2 q_xy = abs(p.xy - cam_p.xy);
     float d_corridor = (3.8 + dilation * 0.6) - max(q_xy.x, q_xy.y);
 
-    // Giant Audio-Reactive Equalizer Towers rising from floor & ceiling
+    // Giant Audio-Reactive Equalizer Towers rising from floor & ceiling (world p.z)
     vec3 q_eq = p - cam_p;
-    q_eq.z = mod(q_eq.z + 1.8, 3.6) - 1.8;
-    float eq_height = 0.6 + 2.2 * (dilation * 1.4 + mids * 0.8) * abs(sin(floor((p.z - cam_p.z) / 3.6) * 1.4 + time * 5.0));
+    q_eq.z = mod(p.z + 1.8, 3.6) - 1.8;
+    float eq_height = 0.6 + 2.2 * (dilation * 1.4 + mids * 0.8) * abs(sin(floor(p.z / 3.6) * 1.4 + time * 5.0));
     vec3 d_eq_box = abs(vec3(abs(q_eq.x) - 3.0, abs(q_eq.y) - (3.6 - eq_height * 0.5), q_eq.z)) - vec3(0.40, eq_height * 0.5, 0.40);
     float d_eq = max(d_eq_box.x, max(d_eq_box.y, d_eq_box.z));
 
-    // Periodic Quantum Accelerator Gate Rings every 6 meters
+    // Periodic Quantum Accelerator Gate Rings every 6 meters (world p.z)
     vec3 q_ring = p - cam_p;
     q_ring.z = mod(p.z + 3.0, 6.0) - 3.0;
     float ring_body = abs(length(q_ring.xy) - (3.2 + dilation * 0.4)) - 0.14;
@@ -146,7 +144,9 @@ float sdf_cyber(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     float d_rails = length(q_rails) - 0.12;
 
     float d_tech = min(d_ring, min(d_rails, d_eq));
-    return min(d_corridor, d_tech);
+    float d_cyber_geom = min(d_corridor, d_tech);
+    float d_flight_corridor = length(p.xy - cam_p.xy) - (2.4 + dilation * 0.3);
+    return max(d_cyber_geom, -d_flight_corridor);
 }
 
 // =============================================================================
@@ -159,7 +159,7 @@ float sdf_dubstep(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     float tunnel_radius = 3.6 + dilation * 0.8 + wobble;
     float d_void_tunnel = tunnel_radius - length(p.xy - cam_p.xy);
 
-    // 2. Heavy Hexagonal Quantum Gravity Rings every 4 meters
+    // 2. Heavy Hexagonal Quantum Gravity Rings every 4 meters (world p.z)
     vec3 q_ring = p - cam_p;
     q_ring.z = mod(p.z + 2.0, 4.0) - 2.0;
     // Hexagonal ring profile
@@ -168,10 +168,10 @@ float sdf_dubstep(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     float d_hex_ring = abs(hex_dist - (3.3 + dilation * 0.6)) - 0.18;
     float d_ring_segment = max(d_hex_ring, abs(q_ring.z) - 0.26);
 
-    // 3. Pulsating Sub-Bass Monolith Resonators along the perimeter
+    // 3. Pulsating Sub-Bass Monolith Resonators along the perimeter (world p.z)
     vec3 q_res = abs(p - cam_p);
     q_res.x -= (3.4 + dilation * 0.5);
-    q_res.z = mod(q_res.z + 3.0, 6.0) - 3.0;
+    q_res.z = mod(p.z + 3.0, 6.0) - 3.0;
     vec3 box_dim = vec3(0.45, 1.2 + dilation * 1.5 + mids * 0.6, 0.45);
     vec3 d_b = abs(q_res) - box_dim;
     float d_resonator = max(d_b.x, max(d_b.y, d_b.z));
@@ -315,25 +315,25 @@ void main() {
     float arousal        = u_laser_pos.w;
     float is_silent      = u_extra_physics.z;
 
-    // Distinct Synesthetic color palette by genre
-    float base_hue = 0.0;
-    if (w_metal > 0.35) {
-        // Metal / Rock (Hand of Blood): Fiery Blood Red / Volcanic Obsidian Crimson (0.97 -> 0.04)
-        base_hue = fract(0.97 + spec_centroid * 0.10 + time * 0.002);
-    } else if (w_dubstep > 0.35) {
-        // Dubstep / Speedcore (Skrillex / Camellia): Toxic Neon Acid Green / Electric Ultraviolet (0.33 -> 0.75)
-        base_hue = fract(0.33 + spec_centroid * 0.40 + time * 0.006);
-    } else if (w_cyber > 0.35) {
-        // Cyber (Techno / Synthwave): Electric Cyan / Neon Magenta (0.52 -> 0.85)
-        base_hue = fract(0.52 + spec_centroid * 0.28 + time * 0.004);
-    } else {
-        // Liquid (Jazz / Lofi): Warm Sunset Amber / Jade Green / Gold (0.10 -> 0.40)
-        base_hue = fract(0.10 + spec_centroid * 0.25 + time * 0.003);
-    }
-
-    float sat = mix(0.85, 0.40, w_metal);
+    // Continuous Synesthetic color palette by genre blending
     float val = (0.70 + emission_pulse * 0.30) * (1.0 - is_silent * 0.6);
-    vec3 synesthetic_color = hsv2rgb(vec3(base_hue, sat, val));
+    float hue_liquid  = fract(0.12 + spec_centroid * 0.22 + time * 0.003);
+    float hue_metal   = fract(0.98 + spec_centroid * 0.08 + time * 0.002);
+    float hue_cyber   = fract(0.55 + spec_centroid * 0.26 + time * 0.004);
+    float hue_dubstep = fract(0.33 + spec_centroid * 0.38 + time * 0.006);
+
+    vec3 col_liquid  = hsv2rgb(vec3(hue_liquid, 0.78, val));
+    vec3 col_metal   = hsv2rgb(vec3(hue_metal, 0.92, val * 1.15));
+    vec3 col_cyber   = hsv2rgb(vec3(hue_cyber, 0.85, val));
+    vec3 col_dubstep = hsv2rgb(vec3(hue_dubstep, 0.94, val * 1.20));
+
+    vec3 synesthetic_color = 
+        w_liquid  * col_liquid +
+        w_metal   * col_metal +
+        w_cyber   * col_cyber +
+        w_dubstep * col_dubstep;
+
+    float base_hue = fract(w_liquid * hue_liquid + w_metal * hue_metal + w_cyber * hue_cyber + w_dubstep * hue_dubstep);
 
     // Deep cosmic background sky
     vec3 sky_color = getSkyColor(rd, base_hue, arousal, is_silent, w_liquid, w_metal, w_cyber, w_dubstep);

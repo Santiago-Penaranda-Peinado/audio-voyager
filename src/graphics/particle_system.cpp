@@ -137,25 +137,39 @@ void ParticleSystem::update(float dt, float total_time,
     ubo_data.physics_scales[2] = 2.5f;
     ubo_data.physics_scales[3] = 1.2f;
 
-    // Biome-driven particle colors
-    if (semantic.weight_metal > 0.35f) {
-        // Metal: Smoldering volcanic embers & fiery sparks
-        ubo_data.color_base[0] = 0.95f; ubo_data.color_base[1] = 0.18f; ubo_data.color_base[2] = 0.05f;
-        ubo_data.color_peak[0] = 1.0f;  ubo_data.color_peak[1] = 0.70f; ubo_data.color_peak[2] = 0.15f;
-    } else if (semantic.weight_dubstep > 0.35f) {
-        // Dubstep / Speedcore: Toxic neon acid & ultraviolet lightning
-        ubo_data.color_base[0] = 0.12f; ubo_data.color_base[1] = 1.0f;  ubo_data.color_base[2] = 0.38f;
-        ubo_data.color_peak[0] = 0.90f; ubo_data.color_peak[1] = 0.15f; ubo_data.color_peak[2] = 1.0f;
-    } else if (semantic.weight_cyber > 0.35f) {
-        // Cyber: Electric cyan & neon magenta
-        ubo_data.color_base[0] = 0.0f;  ubo_data.color_base[1] = 0.75f; ubo_data.color_base[2] = 1.0f;
-        ubo_data.color_peak[0] = 1.0f;  ubo_data.color_peak[1] = 0.05f; ubo_data.color_peak[2] = 0.85f;
-    } else {
-        // Liquid: Warm amber & jade aurora
-        ubo_data.color_base[0] = 0.95f; ubo_data.color_base[1] = 0.65f; ubo_data.color_base[2] = 0.25f;
-        ubo_data.color_peak[0] = 0.35f; ubo_data.color_peak[1] = 0.85f; ubo_data.color_peak[2] = 1.0f;
-    }
+    // Smooth continuous barycentric particle colors across all 4 biomes
+    glm::vec3 col_base_liquid(0.95f, 0.65f, 0.25f);
+    glm::vec3 col_peak_liquid(0.35f, 0.85f, 1.0f);
+
+    glm::vec3 col_base_metal(0.95f, 0.14f, 0.05f);
+    glm::vec3 col_peak_metal(1.0f,  0.60f, 0.10f);
+
+    glm::vec3 col_base_cyber(0.0f,  0.75f, 1.0f);
+    glm::vec3 col_peak_cyber(1.0f,  0.05f, 0.85f);
+
+    glm::vec3 col_base_dubstep(0.12f, 1.0f,  0.35f);
+    glm::vec3 col_peak_dubstep(0.90f, 0.15f, 1.0f);
+
+    glm::vec3 blended_base = 
+        semantic.weight_liquid  * col_base_liquid +
+        semantic.weight_metal   * col_base_metal +
+        semantic.weight_cyber   * col_base_cyber +
+        semantic.weight_dubstep * col_base_dubstep;
+
+    glm::vec3 blended_peak = 
+        semantic.weight_liquid  * col_peak_liquid +
+        semantic.weight_metal   * col_peak_metal +
+        semantic.weight_cyber   * col_peak_cyber +
+        semantic.weight_dubstep * col_peak_dubstep;
+
+    ubo_data.color_base[0] = blended_base.r;
+    ubo_data.color_base[1] = blended_base.g;
+    ubo_data.color_base[2] = blended_base.b;
     ubo_data.color_base[3] = 1.0f;
+
+    ubo_data.color_peak[0] = blended_peak.r;
+    ubo_data.color_peak[1] = blended_peak.g;
+    ubo_data.color_peak[2] = blended_peak.b;
     ubo_data.color_peak[3] = 0.0f;
 
     // Camera and Laser entity positions passed to GPU Compute Shader

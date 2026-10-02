@@ -24,6 +24,7 @@ private:
 
     core::AudioSemanticVector vector_{};
     SemanticClassifierML ml_classifier_{};
+    MLClassificationResult last_ml_result_{};
 
     // Slow temporal integrator for Mind / ML biome weights (tau ~ 3.5s)
     float smooth_weight_liquid_{0.25f};

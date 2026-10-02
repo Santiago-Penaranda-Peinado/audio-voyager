@@ -7,6 +7,13 @@ namespace audio_voyager::brain {
 
 SemanticBrain::SemanticBrain() {
     onset_history_.resize(ONSET_HISTORY_SIZE, 0.0f);
+    last_ml_result_.prob_liquid  = 0.25f;
+    last_ml_result_.prob_metal   = 0.25f;
+    last_ml_result_.prob_crystal = 0.25f;
+    last_ml_result_.prob_cyber   = 0.25f;
+    last_ml_result_.prob_dubstep = 0.25f;
+    last_ml_result_.valence      = 0.5f;
+    last_ml_result_.arousal      = 0.5f;
 }
 
 void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt) {
@@ -19,22 +26,32 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     // =========================================================================
     // 1. LA MENTE: Inferencia de Machine Learning Ágil (~0.5s)
     // =========================================================================
-    if (!is_silent) {
+    if (is_silent) {
+        // En silencio, relajar suavemente hacia el estado Zen de reposo (Océano Líquido)
+        last_ml_result_.prob_liquid  = 0.85f;
+        last_ml_result_.prob_metal   = 0.05f;
+        last_ml_result_.prob_crystal = 0.05f;
+        last_ml_result_.prob_cyber   = 0.05f;
+        last_ml_result_.prob_dubstep = 0.05f;
+        last_ml_result_.valence      = 0.65f;
+        last_ml_result_.arousal      = 0.05f;
+    } else {
         ml_classifier_.accumulate_frame(audio_state, dt);
+        MLClassificationResult eval_res;
+        if (ml_classifier_.maybe_evaluate(eval_res)) {
+            last_ml_result_ = eval_res;
+        }
     }
-    
-    MLClassificationResult ml_result;
-    ml_classifier_.maybe_evaluate(ml_result);
 
     // Filtro Leaky Integrator Ágil (tau ~ 1.2s para transiciones vivas entre partes)
     const float alpha_mind = 1.0f - std::exp(-0.85f * dt);
-    smooth_weight_liquid_  += alpha_mind * (ml_result.prob_liquid  - smooth_weight_liquid_);
-    smooth_weight_metal_   += alpha_mind * (ml_result.prob_metal   - smooth_weight_metal_);
+    smooth_weight_liquid_  += alpha_mind * (last_ml_result_.prob_liquid  - smooth_weight_liquid_);
+    smooth_weight_metal_   += alpha_mind * (last_ml_result_.prob_metal   - smooth_weight_metal_);
     smooth_weight_crystal_ = smooth_weight_metal_;
-    smooth_weight_cyber_   += alpha_mind * (ml_result.prob_cyber   - smooth_weight_cyber_);
-    smooth_weight_dubstep_ += alpha_mind * (ml_result.prob_dubstep - smooth_weight_dubstep_);
-    smooth_valence_        += alpha_mind * (ml_result.valence      - smooth_valence_);
-    smooth_arousal_        += alpha_mind * (ml_result.arousal      - smooth_arousal_);
+    smooth_weight_cyber_   += alpha_mind * (last_ml_result_.prob_cyber   - smooth_weight_cyber_);
+    smooth_weight_dubstep_ += alpha_mind * (last_ml_result_.prob_dubstep - smooth_weight_dubstep_);
+    smooth_valence_        += alpha_mind * (last_ml_result_.valence      - smooth_valence_);
+    smooth_arousal_        += alpha_mind * (last_ml_result_.arousal      - smooth_arousal_);
 
     // Normalización baricéntrica 4-dimensional estricta (w_l + w_m + w_c + w_d = 1.0)
     float sum_w = smooth_weight_liquid_ + smooth_weight_metal_ + smooth_weight_cyber_ + smooth_weight_dubstep_;
@@ -140,7 +157,7 @@ void SemanticBrain::update_bpm(float sub_bass, float onset_val, float dt, bool i
 
     // 1. Acumular en buffer circular a frecuencia constante ~45 Hz
     bpm_sample_timer_ += dt;
-    if (bpm_sample_timer_ >= BPM_HOP_INTERVAL) {
+    while (bpm_sample_timer_ >= BPM_HOP_INTERVAL) {
         bpm_sample_timer_ -= BPM_HOP_INTERVAL;
         float sample_val = onset_val * 1.5f + sub_bass * 0.8f;
         onset_history_.push_back(sample_val);
@@ -197,12 +214,13 @@ void SemanticBrain::update_bpm(float sub_bass, float onset_val, float dt, bool i
         }
         float r = (count > 0) ? (sum / (static_cast<float>(count) * variance)) : 0.0f;
 
-        // Prior gaussiano centrado en 125 BPM para estabilizar armónicos
+        // Prior gaussiano centrado en 130 BPM con mayor amplitud (sigma = 75 BPM)
+        // para dar plena libertad a tempos veloces de metal (180-210 BPM) y Camellia speedcore
         float cand_bpm = 60.0f / (static_cast<float>(lag) * BPM_HOP_INTERVAL);
-        float bpm_diff = (cand_bpm - 125.0f) / 50.0f;
+        float bpm_diff = (cand_bpm - 130.0f) / 75.0f;
         float prior = std::exp(-0.5f * bpm_diff * bpm_diff);
 
-        float score = r * (0.65f + 0.35f * prior);
+        float score = r * (0.80f + 0.20f * prior);
         corr_scores[lag] = score;
 
         if (score > best_corr) {
