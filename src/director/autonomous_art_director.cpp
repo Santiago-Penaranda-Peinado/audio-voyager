@@ -22,51 +22,68 @@ glm::vec3 AutonomousArtDirector::compute_entity_path(float z, float time) const 
 
 void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, float dt) {
     dt = std::clamp(dt, 0.001f, 0.05f);
+    elapsed_time_ += dt;
 
     // 1. Musical Speed: Directly driven by SemanticBrain's multi-genre kinetic DSP
     float target_speed = semantic.is_silent ? 0.20f : semantic.speed_forward;
-    smooth_speed_ += (target_speed - smooth_speed_) * (1.0f - std::exp(-6.0f * dt));
+    smooth_speed_ += (target_speed - smooth_speed_) * (1.0f - std::exp(-8.0f * dt));
 
     current_z_ += smooth_speed_ * dt * 2.2f;
 
-    // 2. Compute Entity Ribbon Path ahead
-    glm::vec3 entity_pos = compute_entity_path(current_z_ + 7.0f, current_z_ * 0.10f);
-    glm::vec3 entity_ahead = compute_entity_path(current_z_ + 16.0f, current_z_ * 0.10f);
-    glm::vec3 entity_far = compute_entity_path(current_z_ + 24.0f, current_z_ * 0.10f);
+    // 2. Compute Entity Ribbon Path ahead (symmetric 8-meter steps for unbiased curvature)
+    glm::vec3 entity_pos   = compute_entity_path(current_z_ + 8.0f,  elapsed_time_);
+    glm::vec3 entity_ahead = compute_entity_path(current_z_ + 16.0f, elapsed_time_);
+    glm::vec3 entity_far   = compute_entity_path(current_z_ + 24.0f, elapsed_time_);
     laser_pos_ = entity_pos;
 
-    // 3. Gentle Musical Breathing & Pitch Nod (Bobs smoothly, never looks straight down)
-    // In Metal/Rock: rhythmic headbanging nod on heavy drum kicks
-    float metal_kick_nod = (semantic.is_onset ? 0.035f : 0.0f) * semantic.weight_metal;
+    // 3. Rhythmic Headbanging Nod & Vertical Bobbing:
+    // In Metal/Rock: genuine headbanging nod on heavy drum kicks with physical recoil
+    if (semantic.is_onset && semantic.weight_metal > 0.25f) {
+        headbang_impulse_ = std::min(headbang_impulse_ + 0.08f * semantic.weight_metal, 0.16f);
+    }
+    headbang_impulse_ *= std::exp(-9.0f * dt);
+
     float target_bob_y = 2.6f + semantic.elastic_dilation * 0.50f + (semantic.is_onset ? 0.20f : 0.0f);
     smooth_bob_y_ += (target_bob_y - smooth_bob_y_) * (1.0f - std::exp(-12.0f * dt));
 
-    // Subtle pitch nod (+/- 1.5 degrees, looking forward toward horizon)
-    float target_pitch = -0.015f * semantic.elastic_dilation - (semantic.is_onset ? 0.020f : 0.0f) + 0.010f - metal_kick_nod;
+    // Subtle pitch nod (+/- 1.5 degrees, looking forward toward horizon) + headbang impulse
+    float target_pitch = -0.015f * semantic.elastic_dilation - (semantic.is_onset ? 0.020f : 0.0f) + 0.010f - headbang_impulse_;
     smooth_pitch_ += (target_pitch - smooth_pitch_) * (1.0f - std::exp(-16.0f * dt));
 
-    // 4. Camera Positioning (Strict Altitude Clearance >= 2.0m)
+    // 4. Heavy Rock & Bass Drop Trauma Shake (Visceral Acoustic Impact):
+    // Shudders camera on explosive metal breakdowns & dubstep drops, decays to 0.0 for silk jazz
+    if (semantic.is_onset) {
+        float kick_strength = semantic.weight_metal * 1.4f + semantic.weight_dubstep * 1.1f;
+        trauma_ = std::clamp(trauma_ + 0.35f * kick_strength * semantic.arousal, 0.0f, 1.0f);
+    }
+    trauma_ = std::max(0.0f, trauma_ - 2.5f * dt);
+
+    float shake_intensity = trauma_ * trauma_ * 0.05f;
+    float shake_x = std::sin(current_z_ * 37.0f) * std::cos(elapsed_time_ * 45.0f) * shake_intensity;
+    float shake_y = std::cos(current_z_ * 29.0f) * shake_intensity * 0.6f;
+
+    // 5. Camera Positioning (Strict Altitude Clearance >= 2.0m)
     glm::vec3 target_cam_pos(
-        entity_pos.x * 0.65f,
-        std::max(smooth_bob_y_, 2.2f),
+        entity_pos.x * 0.65f + shake_x,
+        std::max(smooth_bob_y_ + shake_y, 2.2f),
         current_z_
     );
 
     camera_pos_ += (target_cam_pos - camera_pos_) * (1.0f - std::exp(-7.0f * dt));
     camera_pos_.y = std::max(camera_pos_.y, 2.0f);
 
-    // 5. Look Direction (Proudly forward toward horizon and entity)
+    // 6. Look Direction (Proudly forward toward horizon and entity)
     glm::vec3 look_target = entity_ahead + glm::vec3(0.0f, -0.4f + smooth_pitch_ * 8.0f, 0.0f);
     glm::vec3 to_target = look_target - camera_pos_;
     if (glm::length(to_target) > 0.001f) {
         camera_dir_ = glm::normalize(to_target);
     }
 
-    // 6. True 6DoF Camera Banking (Roll):
-    // Computes lateral trajectory curvature (second derivative) and banks like a high-speed jet glider
+    // 7. True 6DoF Camera Banking (Roll):
+    // Symmetric central difference for lateral trajectory curvature (d^2 x / dz^2)
     float turn_dx = (entity_far.x - 2.0f * entity_ahead.x + entity_pos.x);
     float speed_normalized = std::clamp(smooth_speed_ / 3.0f, 0.5f, 2.0f);
-    float target_roll = -std::clamp(turn_dx * 0.40f * speed_normalized, -0.25f, 0.25f);
+    float target_roll = -std::clamp(turn_dx * 0.40f * speed_normalized, -0.28f, 0.28f) + shake_x * 0.4f;
     smooth_roll_ += (target_roll - smooth_roll_) * (1.0f - std::exp(-5.0f * dt));
 
     // Rotate world UP vector around camera direction by bank angle
@@ -74,10 +91,10 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
     glm::mat4 roll_mat = glm::rotate(glm::mat4(1.0f), smooth_roll_, camera_dir_);
     camera_up_ = glm::normalize(glm::vec3(roll_mat * glm::vec4(world_up, 0.0f)));
 
-    // 7. Cinematic Dynamic Field of View:
+    // 8. Cinematic Dynamic Field of View:
     // Expands dynamically during high kinetic speeds / dubstep drops from 66 deg up to 78 deg
-    float warp_fov_boost = std::clamp((smooth_speed_ - 1.5f) / 3.0f, 0.0f, 1.0f) * 8.0f;
-    float target_fov = glm::radians(66.0f + warp_fov_boost + semantic.arousal * 4.0f + (semantic.is_onset ? 2.5f : 0.0f));
+    float warp_fov_boost = std::clamp((smooth_speed_ - 1.5f) / 3.0f, 0.0f, 1.0f) * 10.0f;
+    float target_fov = glm::radians(66.0f + warp_fov_boost + semantic.arousal * 5.0f + (semantic.is_onset ? 3.0f : 0.0f));
     smooth_fov_ += (target_fov - smooth_fov_) * (1.0f - std::exp(-6.0f * dt));
     fov_radians_ = smooth_fov_;
 

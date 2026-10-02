@@ -19,6 +19,7 @@ public:
     [[nodiscard]] float get_camera_roll() const noexcept { return smooth_roll_; }
     [[nodiscard]] float get_fov_radians() const noexcept { return fov_radians_; }
     [[nodiscard]] glm::vec3 get_laser_pos() const noexcept { return laser_pos_; }
+    [[nodiscard]] float get_trauma() const noexcept { return trauma_; }
 
     [[nodiscard]] glm::mat4 get_view_matrix() const;
     [[nodiscard]] glm::mat4 get_projection_matrix(float aspect) const;
@@ -33,6 +34,7 @@ private:
     glm::vec3 laser_pos_{0.0f, 1.0f, 0.0f};
 
     float current_z_{0.0f};
+    float elapsed_time_{0.0f};
     float fov_radians_{glm::radians(68.0f)};
 
     float smooth_pitch_{0.0f};
@@ -40,6 +42,8 @@ private:
     float smooth_bob_y_{2.8f};
     float smooth_fov_{glm::radians(68.0f)};
     float smooth_speed_{1.4f};
+    float headbang_impulse_{0.0f};
+    float trauma_{0.0f};
 };
 
 } // namespace audio_voyager::director
