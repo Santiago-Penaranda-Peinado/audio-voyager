@@ -60,7 +60,9 @@ float sdf_liquid(vec3 p, vec3 cam_p, float dilation, float mids, float is_silent
     vec3 q_orb = p - cam_p;
     q_orb.xz = mod(q_orb.xz + vec2(7.0), 14.0) - vec2(7.0);
     // Push away from central flight path
-    float side_shift = sign(q_orb.x) * 3.5;
+    float side = sign(q_orb.x);
+    if (abs(side) < 0.1) side = 1.0;
+    float side_shift = side * 3.5;
     q_orb.x -= side_shift;
     q_orb.y = p.y - (0.4 + 0.8 * sin(p.z * 0.35 + time * 1.3));
     float d_orb = length(q_orb) - (0.95 + dilation * 0.50 + mids * 0.30);
@@ -217,6 +219,11 @@ float map(vec3 p) {
         float shock = sin(r * 4.5 - time * 20.0) * exp(-0.25 * r) * ripple * 0.60;
         d_interpolated += shock;
     }
+
+    // GUARANTEED Safe Flight Corridor across all biomes & blend states:
+    // Guarantees camera center and near-frustum can NEVER clip or black out under any combination
+    float d_global_corridor = length(p.xy - cam_p.xy) - (2.2 + dilation * 0.2);
+    d_interpolated = max(d_interpolated, -d_global_corridor);
 
     return d_interpolated;
 }

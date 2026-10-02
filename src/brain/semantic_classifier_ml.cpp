@@ -88,13 +88,16 @@ void SemanticClassifierML::compute_mel_features(std::array<float, 28>& out_featu
     float mean_diss = accumulated_dissonance_ * inv_n;
     float mean_centroid = accumulated_centroid_ * inv_n;
     float mean_energy = accumulated_energy_ * inv_n;
-    float mean_onsets = accumulated_onsets_ * inv_n;
+
+    // Frame-rate independent rhythmic cadence (events per second / Hz)
+    float dt_eval = std::max(time_since_last_eval_, 0.05f);
+    float onset_cadence_hz = accumulated_onsets_ / dt_eval;
 
     // Auto-calibrated normalized features
     out_features[24] = std::clamp(mean_diss * 3.0f, 0.0f, 3.0f);                      // Dissonance & guitar distortion
     out_features[25] = std::clamp((mean_centroid - 200.0f) / 2500.0f, 0.0f, 3.0f);  // Centroid brightness
     out_features[26] = std::clamp(mean_energy / 0.12f, 0.0f, 3.0f);                  // Acoustic energy density
-    out_features[27] = std::clamp(mean_onsets * 25.0f, 0.0f, 3.0f);                 // Rhythm & onset cadence
+    out_features[27] = std::clamp(onset_cadence_hz / 5.0f, 0.0f, 3.0f);               // Rhythm & onset cadence (1.0 = 5 Hz)
 }
 
 void SemanticClassifierML::forward_pass(const std::array<float, 28>& x, MLClassificationResult& out_result) {
@@ -135,16 +138,16 @@ void SemanticClassifierML::forward_pass(const std::array<float, 28>& x, MLClassi
         // Feature anchors with clear zero-crossing discrimination
         if (i < 4) {
             // Liquid: High reward for low dissonance, gentle onsets, acoustic warmth
-            sum += 3.2f * (0.55f - diss) + 2.2f * (0.60f - onsets) + 1.2f * mids_energy;
+            sum += 2.8f * (0.50f - diss) + 2.0f * (0.60f - onsets) + 1.2f * mids_energy;
         } else if (i < 8) {
-            // Metal: Requires heavy distortion (high dissonance), loud guitar mids, high rhythm
-            sum += 4.5f * (diss - 0.35f) + 2.5f * (mids_energy - 0.30f) + 1.5f * (onsets - 0.40f) - 2.0f * sub_energy;
+            // Metal: Heavy harmonic distortion (high dissonance), loud guitar mids, aggressive pace
+            sum += 3.8f * (diss - 0.35f) + 2.6f * (mids_energy - 0.25f) + 1.6f * (onsets - 0.35f);
         } else if (i < 12) {
             // Cyber: Clean punch bass, steady cadence, low distortion
-            sum += 3.2f * (punch_energy - 0.25f) + 2.0f * (onsets - 0.30f) + 2.2f * (0.45f - diss);
+            sum += 2.8f * (punch_energy - 0.25f) + 1.8f * (onsets - 0.30f) + 2.0f * (0.40f - diss);
         } else {
             // Dubstep: Massive sub-bass dominance, explosive drops, speedcore tempo
-            sum += 4.5f * (sub_energy - 0.30f) + 2.0f * (onsets - 0.50f) + 1.8f * (sub_energy - mids_energy);
+            sum += 3.6f * (sub_energy - 0.28f) + 2.2f * (onsets - 0.40f) + 2.0f * (sub_energy - mids_energy);
         }
 
         h1[i] = gelu(sum);
@@ -177,36 +180,37 @@ void SemanticClassifierML::forward_pass(const std::array<float, 28>& x, MLClassi
 
     // 1. Heavy Metal / Hard Rock Signature (e.g. Hand of Blood):
     //    Continuous harmonic distortion / high Sethares dissonance + loud guitar mids + cymbal wash
-    if (diss > 0.40f && mids_energy > 0.20f) {
-        float metal_strength = (diss - 0.35f) * 3.5f + (mids_energy - 0.15f) * 2.0f + treble_energy * 1.2f;
-        logit_metal += std::clamp(metal_strength, 0.0f, 4.0f);
+    //    Metal songs also have heavy kick drums, so we check for high dissonance & guitar mids
+    if (diss > 0.35f && mids_energy > 0.22f) {
+        float metal_strength = (diss - 0.30f) * 2.8f + (mids_energy - 0.20f) * 2.0f + treble_energy * 0.8f;
+        logit_metal += std::clamp(metal_strength, 0.0f, 3.2f);
     }
 
     // 2. Dubstep / Speedcore Signature (e.g. Skrillex, Camellia):
     //    Extreme sub-bass dominance over mids OR hyper-speed electronic onsets with bright synths
     float sub_dominance = sub_energy / (mids_energy + 0.05f);
-    if (sub_dominance > 1.3f && sub_energy > 0.25f) {
-        logit_dubstep += std::clamp((sub_dominance - 1.0f) * 2.5f + sub_energy * 2.0f, 0.0f, 4.0f);
-    } else if (onsets > 1.2f && brightness > 0.8f && diss < 0.60f) {
+    if (sub_dominance > 1.2f && sub_energy > 0.25f && diss < 0.50f) {
+        logit_dubstep += std::clamp((sub_dominance - 1.0f) * 2.0f + sub_energy * 2.0f, 0.0f, 3.2f);
+    } else if (onsets > 1.0f && brightness > 0.7f && diss < 0.50f) {
         // Camellia / Speedcore: Ultra-fast BPM synthetic drops
-        logit_dubstep += 3.0f;
+        logit_dubstep += 2.5f;
     }
 
     // 3. Cyber / Techno / Synthwave Signature:
     //    Steady electronic punch bass, clean consonance (low dissonance), balanced spectrum
-    if (punch_energy > 0.25f && diss < 0.35f && onsets > 0.4f && onsets < 1.4f) {
-        logit_cyber += 2.5f;
+    if (punch_energy > 0.22f && diss < 0.35f && onsets > 0.30f && onsets < 1.4f) {
+        logit_cyber += 2.2f;
     }
 
-    // 4. Liquid / Jazz / Lofi / Soft Acoustic Signature (e.g. Frog Family, Miles Davis):
+    // 4. Liquid / Jazz / Lofi / Soft Acoustic Signature:
     //    Clean acoustic timbre (very low dissonance), gentle pace, warm harmonic body
-    if (diss < 0.25f && (onsets < 0.65f || energy < 0.40f)) {
-        float jazz_peace = (0.35f - diss) * 4.0f + std::max(0.0f, 0.70f - onsets) * 2.5f;
-        logit_liquid += std::clamp(jazz_peace, 0.0f, 4.0f);
+    if (diss < 0.25f && (onsets < 0.60f || energy < 0.35f)) {
+        float jazz_peace = (0.35f - diss) * 3.0f + std::max(0.0f, 0.65f - onsets) * 2.0f;
+        logit_liquid += std::clamp(jazz_peace, 0.0f, 3.2f);
     }
 
-    // Temperature-scaled 4-way Softmax (T = 0.65 for crisp, unambiguous yet smooth transitions)
-    constexpr float T = 0.65f;
+    // Calibrated temperature-scaled 4-way Softmax (T = 1.35 for smooth, expressive continuous blending)
+    constexpr float T = 1.35f;
     float max_logit = std::max({logit_liquid, logit_metal, logit_cyber, logit_dubstep});
     float exp_l = std::exp((logit_liquid  - max_logit) / T);
     float exp_m = std::exp((logit_metal   - max_logit) / T);
