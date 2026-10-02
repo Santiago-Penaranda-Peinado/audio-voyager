@@ -37,13 +37,16 @@ private:
     float elapsed_time_{0.0f};
     float fov_radians_{glm::radians(68.0f)};
 
-    float smooth_pitch_{0.0f};
     float smooth_roll_{0.0f};
-    float smooth_bob_y_{2.8f};
     float smooth_fov_{glm::radians(68.0f)};
-    float smooth_speed_{1.4f};
+    float smooth_speed_{3.0f};
     float headbang_impulse_{0.0f};
     float trauma_{0.0f};
+
+    // Music-driven vertical flight axis (tunnel elevation/undulation)
+    float music_altitude_{2.6f};
+    float music_target_altitude_{2.6f};
+    float music_dive_impulse_{0.0f};
 };
 
 } // namespace audio_voyager::director

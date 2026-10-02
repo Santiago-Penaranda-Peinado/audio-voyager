@@ -96,8 +96,8 @@ void StreamARaw::extract_frequency_bands(const std::vector<float>& magnitude_spe
         const float f_low = BAND_LIMITS[b].first;
         const float f_high = BAND_LIMITS[b].second;
 
-        size_t bin_start = std::clamp(static_cast<size_t>(f_low / bin_resolution), size_t{0}, num_bins - 1);
-        size_t bin_end = std::clamp(static_cast<size_t>(f_high / bin_resolution), bin_start + 1, num_bins);
+        size_t bin_start = std::clamp(static_cast<size_t>(f_low / bin_resolution), size_t{1}, num_bins - 1);
+        size_t bin_end = std::clamp(static_cast<size_t>(std::ceil(f_high / bin_resolution)), bin_start + 1, num_bins);
 
         float sum = 0.0f;
         for (size_t bin = bin_start; bin < bin_end; ++bin) {
@@ -127,7 +127,7 @@ core::StreamASnapshot StreamARaw::process() {
         t_start.time_since_epoch()).count();
 
     // Pull available samples from ring buffer to fill/slide the time buffer
-    constexpr size_t SCRATCH_SIZE = 1024;
+    constexpr size_t SCRATCH_SIZE = 2048;
     float scratch[SCRATCH_SIZE];
     const size_t pulled = input_ring_buffer_.pop_n(scratch, SCRATCH_SIZE);
 

@@ -102,13 +102,24 @@ float StreamBPhysics::compute_sethares_dissonance(const std::vector<float>& spec
         return 0.0f;
     }
 
+    float max_mag = 0.0f;
+    for (const auto& p : peaks) {
+        max_mag = std::max(max_mag, p.mag);
+    }
+    if (max_mag < 1e-6f) {
+        return 0.0f;
+    }
+
     // 2. Compute pairwise sensory dissonance (Sethares model)
+    // Partial amplitudes normalized relative to maximum peak: a_i = m_i / max_mag in [0, 1]
     float total_dissonance = 0.0f;
     for (size_t i = 0; i < peaks.size(); ++i) {
+        const float a1 = peaks[i].mag / max_mag;
         for (size_t j = i + 1; j < peaks.size(); ++j) {
+            const float a2 = peaks[j].mag / max_mag;
             const float f_min = std::min(peaks[i].freq, peaks[j].freq);
             const float f_diff = std::abs(peaks[i].freq - peaks[j].freq);
-            const float a_prod = peaks[i].mag * peaks[j].mag;
+            const float a_prod = a1 * a2;
 
             const float s = SETHARES_X_STAR / (SETHARES_S1 * f_min + SETHARES_S2);
             const float arg = s * f_diff;
@@ -117,8 +128,32 @@ float StreamBPhysics::compute_sethares_dissonance(const std::vector<float>& spec
         }
     }
 
-    // Normalize dissonance into [0, 1] range
-    return std::clamp(total_dissonance * 5.0f, 0.0f, 1.0f);
+    // Normalize dissonance into [0, 1] range (with normalized partials, dense dissonant chords reach 0.6-0.8)
+    return std::clamp(total_dissonance * 0.25f, 0.0f, 1.0f);
+}
+
+float StreamBPhysics::compute_spectral_flatness(const std::vector<float>& spectrum) {
+    if (spectrum.size() <= 2) return 0.0f;
+    constexpr float EPSILON = 1e-9f;
+    float sum_log = 0.0f;
+    float sum_power = 0.0f;
+    size_t count = 0;
+
+    // Power spectrum Wiener entropy (geometric mean / arithmetic mean), skipping DC bin 0
+    for (size_t k = 1; k < spectrum.size(); ++k) {
+        float power = spectrum[k] * spectrum[k];
+        sum_power += power;
+        sum_log += std::log(power + EPSILON);
+        count++;
+    }
+
+    if (count == 0) return 0.0f;
+    float arithmetic_mean = sum_power / static_cast<float>(count);
+    if (arithmetic_mean < EPSILON) return 0.0f;
+
+    float geometric_mean = std::exp(sum_log / static_cast<float>(count));
+    float flatness = geometric_mean / arithmetic_mean;
+    return std::clamp(flatness, 0.0f, 1.0f);
 }
 
 float StreamBPhysics::compute_onset_novelty(const std::vector<float>& spectrum) {
@@ -190,6 +225,9 @@ void StreamBPhysics::process_frame(const float* frame, size_t frame_size, core::
 
     // B. Sethares Dissonance (Roughness / Vorticity)
     out_snapshot.dissonance = compute_sethares_dissonance(magnitude_spectrum_);
+
+    // B2. Spectral Flatness (Wiener Entropy: Heavy distortion / saturation vs clean harmonic)
+    out_snapshot.spectral_flatness = compute_spectral_flatness(magnitude_spectrum_);
 
     // C. Onset Novelty & Peak Trigger (Kinetic Shockwaves)
     const float novelty = compute_onset_novelty(magnitude_spectrum_);

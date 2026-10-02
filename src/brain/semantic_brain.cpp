@@ -117,19 +117,19 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
 
         vector_.is_onset = audio_state.stream_b.is_onset;
 
-        // 2.7 Velocidad Cinemática (Amplio rango dinámico 1.0 a 4.8 m/s según género y BPM)
+        // 2.7 Velocidad Cinemática (Amplio rango dinámico: crucero tranquilo ~3.0 m/s hasta drop/speedcore sprint 25.0 - 45.0 m/s)
         float bpm_factor = std::clamp((vector_.bpm - 60.0f) / 140.0f, 0.0f, 1.0f);
-        float genre_base_speed = 
-            vector_.weight_liquid  * 1.25f + 
-            vector_.weight_cyber   * 2.35f + 
-            vector_.weight_metal   * 3.40f + 
-            vector_.weight_dubstep * 3.60f;
+        float genre_kinetic_boost = 
+            vector_.weight_dubstep * 24.0f + 
+            vector_.weight_metal   * 22.0f + 
+            vector_.weight_cyber   * 12.0f;
 
-        float target_speed = genre_base_speed * (0.80f + 0.35f * bpm_factor) + raw_energy * 0.70f;
+        float kinetic_intensity = (raw_energy * 0.70f + (vector_.is_onset ? 0.30f : 0.0f)) * (0.70f + 0.50f * bpm_factor);
+        float target_speed = 2.8f + genre_kinetic_boost * kinetic_intensity + raw_energy * 10.0f;
         if (vector_.is_onset && raw_energy > 0.35f) {
-            target_speed += 0.85f * (vector_.weight_metal * 1.2f + vector_.weight_dubstep * 1.4f + 0.4f);
+            target_speed += 10.0f * (vector_.weight_dubstep + vector_.weight_metal + 0.3f);
         }
-        target_speed = std::clamp(target_speed, 1.0f, 4.8f);
+        target_speed = std::clamp(target_speed, 2.5f, 45.0f);
         smooth_speed_ += (1.0f - std::exp(-6.0f * dt)) * (target_speed - smooth_speed_);
     }
 
@@ -155,20 +155,25 @@ void SemanticBrain::update_bpm(float sub_bass, float onset_val, float dt, bool i
         return;
     }
 
-    // 1. Acumular en buffer circular a frecuencia constante ~45 Hz
+    // 1. Acumular en buffer circular a frecuencia constante ~45 Hz (hasta 360 muestras / ~8.0s)
     bpm_sample_timer_ += dt;
     while (bpm_sample_timer_ >= BPM_HOP_INTERVAL) {
         bpm_sample_timer_ -= BPM_HOP_INTERVAL;
-        float sample_val = onset_val * 1.5f + sub_bass * 0.8f;
+        // High-pass filter sub-bass to remove continuous DC envelope contamination from sustained 808s
+        float sub_transient = std::max(0.0f, sub_bass - smooth_sub_baseline_);
+        smooth_sub_baseline_ = smooth_sub_baseline_ * 0.96f + sub_bass * 0.04f;
+
+        float sample_val = onset_val * 1.5f + sub_transient * 0.8f;
         onset_history_.push_back(sample_val);
         if (onset_history_.size() > ONSET_HISTORY_SIZE) {
             onset_history_.pop_front();
         }
     }
 
-    // 2. Evaluar autocorrelación periódicamente cada 0.10s
+    // 2. Evaluar autocorrelación periódicamente cada 0.10s (requiere al menos 90 muestras / ~2.0s para empezar)
     bpm_calc_timer_ += dt;
-    if (bpm_calc_timer_ < 0.10f || onset_history_.size() < ONSET_HISTORY_SIZE) {
+    constexpr size_t MIN_BPM_SAMPLES = 90;
+    if (bpm_calc_timer_ < 0.10f || onset_history_.size() < MIN_BPM_SAMPLES) {
         vector_.bpm = current_bpm_;
         vector_.bpm_confidence = current_bpm_conf_;
         return;

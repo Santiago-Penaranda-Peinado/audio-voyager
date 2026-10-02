@@ -17,7 +17,7 @@ inline constexpr float TWO_PI = 6.28318530717958647692f;
 constexpr uint32_t DEFAULT_SAMPLE_RATE = 48000;
 constexpr uint32_t DEFAULT_CHANNELS = 2;
 constexpr size_t RAW_OSCILLOSCOPE_SAMPLES = 256;
-constexpr size_t FFT_SIZE_STREAM_A = 512;
+constexpr size_t FFT_SIZE_STREAM_A = 1024;
 constexpr size_t FFT_BANDS_COUNT = 8;
 constexpr size_t ANALYSIS_FRAME_SIZE_STREAM_B = 1024;
 constexpr size_t ANALYSIS_HOP_SIZE_STREAM_B = 256;
@@ -44,6 +44,7 @@ struct StreamBSnapshot {
     float spectral_centroid_hz{0.0f};
     float spectral_centroid_norm{0.0f};
     float dissonance{0.0f};
+    float spectral_flatness{0.0f};
     float onset_strength{0.0f};
     bool is_onset{false};
     float energy{0.0f};

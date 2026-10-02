@@ -36,6 +36,7 @@ void SemanticClassifierML::accumulate_frame(const core::PhysicsAudioState& state
         accumulated_bands_[i] += state.stream_a.spectrum_bands[i];
     }
     accumulated_dissonance_ += state.stream_b.dissonance;
+    accumulated_flatness_ += state.stream_b.spectral_flatness;
     accumulated_centroid_ += state.stream_b.spectral_centroid_hz;
     accumulated_energy_ += std::max(state.stream_b.energy, state.stream_a.rms);
     accumulated_onsets_ += state.stream_b.is_onset ? 1.0f : 0.0f;
@@ -60,6 +61,7 @@ bool SemanticClassifierML::maybe_evaluate(MLClassificationResult& out_result) {
     time_since_last_eval_ = 0.0f;
     accumulated_bands_.fill(0.0f);
     accumulated_dissonance_ = 0.0f;
+    accumulated_flatness_ = 0.0f;
     accumulated_centroid_ = 0.0f;
     accumulated_energy_ = 0.0f;
     accumulated_onsets_ = 0.0f;
@@ -86,12 +88,14 @@ void SemanticClassifierML::compute_mel_features(std::array<float, 28>& out_featu
     }
 
     float mean_diss = accumulated_dissonance_ * inv_n;
+    float mean_flatness = accumulated_flatness_ * inv_n;
     float mean_centroid = accumulated_centroid_ * inv_n;
     float mean_energy = accumulated_energy_ * inv_n;
     float mean_onsets = accumulated_onsets_ * inv_n;
 
-    // Auto-calibrated normalized features
-    out_features[24] = std::clamp(mean_diss * 3.0f, 0.0f, 3.0f);                      // Dissonance & guitar distortion
+    // Auto-calibrated normalized features: combined distortion integrates Sethares dissonance and flatness
+    float combined_distortion = std::max(mean_diss, mean_flatness * 1.2f);
+    out_features[24] = std::clamp(combined_distortion * 3.0f, 0.0f, 3.0f);                      // Dissonance & distortion
     out_features[25] = std::clamp((mean_centroid - 200.0f) / 2500.0f, 0.0f, 3.0f);  // Centroid brightness
     out_features[26] = std::clamp(mean_energy / 0.12f, 0.0f, 3.0f);                  // Acoustic energy density
     out_features[27] = std::clamp(mean_onsets * 25.0f, 0.0f, 3.0f);                 // Rhythm & onset cadence
@@ -138,13 +142,13 @@ void SemanticClassifierML::forward_pass(const std::array<float, 28>& x, MLClassi
             sum += 3.2f * (0.55f - diss) + 2.2f * (0.60f - onsets) + 1.2f * mids_energy;
         } else if (i < 8) {
             // Metal: Requires heavy distortion (high dissonance), loud guitar mids, high rhythm
-            sum += 4.5f * (diss - 0.35f) + 2.5f * (mids_energy - 0.30f) + 1.5f * (onsets - 0.40f) - 2.0f * sub_energy;
+            sum += 4.5f * (diss - 0.35f) + 2.8f * (mids_energy - 0.30f) + 1.5f * (onsets - 0.40f);
         } else if (i < 12) {
             // Cyber: Clean punch bass, steady cadence, low distortion
             sum += 3.2f * (punch_energy - 0.25f) + 2.0f * (onsets - 0.30f) + 2.2f * (0.45f - diss);
         } else {
-            // Dubstep: Massive sub-bass dominance, explosive drops, speedcore tempo
-            sum += 4.5f * (sub_energy - 0.30f) + 2.0f * (onsets - 0.50f) + 1.8f * (sub_energy - mids_energy);
+            // Dubstep: Massive sub-bass dominance, explosive drops, synth bite
+            sum += 4.0f * (sub_energy - 0.30f) + 2.2f * (onsets - 0.40f) + 1.5f * (treble_energy - 0.15f);
         }
 
         h1[i] = gelu(sum);
@@ -178,14 +182,15 @@ void SemanticClassifierML::forward_pass(const std::array<float, 28>& x, MLClassi
     // 1. Heavy Metal / Hard Rock Signature (e.g. Hand of Blood):
     //    Continuous harmonic distortion / high Sethares dissonance + loud guitar mids + cymbal wash
     if (diss > 0.40f && mids_energy > 0.20f) {
-        float metal_strength = (diss - 0.35f) * 3.5f + (mids_energy - 0.15f) * 2.0f + treble_energy * 1.2f;
+        float metal_strength = (diss - 0.35f) * 3.5f + (mids_energy - 0.15f) * 2.2f + treble_energy * 1.2f;
         logit_metal += std::clamp(metal_strength, 0.0f, 4.0f);
     }
 
     // 2. Dubstep / Speedcore Signature (e.g. Skrillex, Camellia):
-    //    Extreme sub-bass dominance over mids OR hyper-speed electronic onsets with bright synths
+    //    Extreme sub-bass dominance over mids alongside high-frequency synth bite and kinetic onsets
+    //    (Strictly prevented on chill tracks like Frog Family which lack high-freq synths & aggressive onsets)
     float sub_dominance = sub_energy / (mids_energy + 0.05f);
-    if (sub_dominance > 1.3f && sub_energy > 0.25f) {
+    if (sub_dominance > 1.3f && sub_energy > 0.25f && (onsets > 0.30f || energy > 0.30f) && (treble_energy > 0.12f || brightness > 0.30f)) {
         logit_dubstep += std::clamp((sub_dominance - 1.0f) * 2.5f + sub_energy * 2.0f, 0.0f, 4.0f);
     } else if (onsets > 1.2f && brightness > 0.8f && diss < 0.60f) {
         // Camellia / Speedcore: Ultra-fast BPM synthetic drops

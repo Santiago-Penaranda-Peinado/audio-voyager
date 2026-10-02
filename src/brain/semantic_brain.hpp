@@ -45,13 +45,14 @@ private:
     float smooth_speed_{1.3f};
 
     // BPM autocorrelation tracking
-    static constexpr size_t ONSET_HISTORY_SIZE = 150;
+    static constexpr size_t ONSET_HISTORY_SIZE = 360;
     static constexpr float BPM_HOP_INTERVAL = 0.022f; // ~45 Hz sampling
     std::deque<float> onset_history_{};
     float bpm_sample_timer_{0.0f};
     float bpm_calc_timer_{0.0f};
     float current_bpm_{120.0f};
     float current_bpm_conf_{0.5f};
+    float smooth_sub_baseline_{0.0f};
 };
 
 } // namespace audio_voyager::brain

@@ -268,11 +268,22 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
 
     scene_fbo_.unbind();
 
-    // 5. Optical Post-Processing (Dynamic Bloom Slider from Tuners + Eye Adaptation + ACES Filmic)
+    // 5. Optical Post-Processing (Dynamic Bloom & CA sensitivity multipliers + dynamic speed lines)
+    float dyn_bloom = tuners_.bloom_intensity * (0.50f + 0.70f * semantic.emission_pulse + (semantic.is_onset ? 0.40f : 0.0f));
+    if (semantic.is_silent) dyn_bloom = tuners_.bloom_intensity * 0.30f;
+
+    float dyn_ca = tuners_.chromatic_aberration * (0.40f + 1.10f * semantic.surface_ripple + 0.50f * semantic.arousal);
+    if (semantic.is_silent) dyn_ca = tuners_.chromatic_aberration * 0.20f;
+
+    float speed_factor = std::clamp((semantic.speed_forward - 6.0f) / 20.0f, 0.0f, 1.0f);
+    float dyn_speed_lines = speed_factor * 0.75f + (semantic.is_onset && semantic.speed_forward > 12.0f ? 0.35f : 0.0f);
+    dyn_speed_lines = std::clamp(dyn_speed_lines, 0.0f, 1.0f) * tuners_.speed_multiplier;
+    if (semantic.is_silent) dyn_speed_lines = 0.0f;
+
     glDisable(GL_BLEND);
     postprocess_.render(scene_fbo_.get_texture(), width, height, 
-                        tuners_.bloom_intensity, tuners_.chromatic_aberration, 
-                        semantic.surface_ripple, 0.0f, time);
+                        dyn_bloom, dyn_ca, 
+                        semantic.surface_ripple, dyn_speed_lines, time);
 
     // 6. Debug HUD (ImGui) - Toggle via F12
     if (tuners_.show_hud) {

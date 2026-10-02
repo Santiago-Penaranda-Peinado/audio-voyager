@@ -43,6 +43,7 @@ private:
 
     std::array<float, 8> accumulated_bands_{};
     float accumulated_dissonance_{0.0f};
+    float accumulated_flatness_{0.0f};
     float accumulated_centroid_{0.0f};
     float accumulated_energy_{0.0f};
     float accumulated_onsets_{0.0f};

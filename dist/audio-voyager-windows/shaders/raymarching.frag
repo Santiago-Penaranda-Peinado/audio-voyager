@@ -61,14 +61,14 @@ float sdf_liquid(vec3 p, vec3 cam_p, float dilation, float mids, float is_silent
     q_orb.z = mod(p.z + 7.0, 14.0) - 7.0;
     float side = (q_orb.x >= 0.0) ? 1.0 : -1.0;
     q_orb.x = abs(q_orb.x) - (4.8 + dilation * 0.6);
-    q_orb.y = p.y - (0.4 + 0.8 * sin(p.z * 0.35 + time * 1.3));
+    q_orb.y = (p.y - cam_p.y) - (0.4 + 0.8 * sin(p.z * 0.35 + time * 1.3));
     float d_orb = length(q_orb) - (0.95 + dilation * 0.50 + mids * 0.30);
 
     // Floating torus rings flanking (using world p.z)
     vec3 q_ring = p - cam_p;
     q_ring.z = mod(p.z + 7.0, 14.0) - 7.0;
     q_ring.x = abs(q_ring.x) - (4.8 + dilation * 0.6);
-    q_ring.y = p.y - 1.4;
+    q_ring.y = (p.y - cam_p.y) - 0.2;
     vec2 t_ring = vec2(length(q_ring.xz) - 1.8, q_ring.y);
     float d_ring = length(t_ring) - 0.09;
 
@@ -338,16 +338,16 @@ void main() {
     // Deep cosmic background sky
     vec3 sky_color = getSkyColor(rd, base_hue, arousal, is_silent, w_liquid, w_metal, w_cyber, w_dubstep);
 
-    // Raymarching loop
+    // Raymarching loop (Expanded render distance to 160m for grand tunnel vista)
     float t = 0.05;
-    float t_max = 75.0;
+    float t_max = 160.0;
     float hit_dist = 0.0;
     vec3 p = ro;
     bool hit = false;
 
     vec3 accum_glow = vec3(0.0);
 
-    for (int i = 0; i < 75; ++i) {
+    for (int i = 0; i < 112; ++i) {
         p = ro + rd * t;
         hit_dist = map(p);
 
@@ -408,8 +408,9 @@ void main() {
 
         scene_color = (albedo * (ambient + laser_light) + iridescence * fresnel * 2.0) * ao;
 
-        // Depth fog
-        float fog = 1.0 - exp(-t * 0.030);
+        // Depth fog (Delayed onset past 35m: crystal clear forward view of tunnel)
+        float fog_dist = max(0.0, t - 35.0);
+        float fog = 1.0 - exp(-fog_dist * 0.022);
         scene_color = mix(scene_color, sky_color, fog);
     } else {
         scene_color = sky_color;

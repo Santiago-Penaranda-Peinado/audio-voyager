@@ -51,6 +51,19 @@ void main() {
     vec3 bloom = texture(u_bloom_blur, sample_uv).rgb;
     vec3 composite = scene_hdr + bloom * u_bloom_intensity;
 
+    // Radial speed lines (warp streaks during high-speed sprints / beat drops)
+    if (u_speed_lines > 0.02) {
+        float angle = atan(center_offset.y, center_offset.x);
+        float r_dist = length(center_offset);
+        // High-frequency angular noise lines streaming inwards
+        float streak = sin(angle * 48.0 + u_time * 8.0) * sin(angle * 96.0 - u_time * 12.0);
+        streak = smoothstep(0.40, 0.95, streak);
+        // Radial mask: visible towards periphery, crystal clear at center
+        float radial_mask = smoothstep(0.25, 0.75, r_dist);
+        float line_alpha = streak * radial_mask * u_speed_lines;
+        composite += vec3(line_alpha * 0.45);
+    }
+
     // Eye Adaptation / Dynamic Auto-Exposure (stabilized against whitening)
     float luma = dot(composite, vec3(0.2126, 0.7152, 0.0722));
     float auto_exposure = 1.0 / sqrt(luma + 0.22);

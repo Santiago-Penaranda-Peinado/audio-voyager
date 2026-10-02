@@ -31,13 +31,13 @@ float test_sdf_liquid(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, 
     q_orb.z = std::fmod(p.z + 7.0f, 14.0f) - 7.0f;
     float side = (q_orb.x >= 0.0f) ? 1.0f : -1.0f;
     q_orb.x = std::abs(q_orb.x) - (4.8f + dilation * 0.6f);
-    q_orb.y = p.y - (0.4f + 0.8f * std::sin(p.z * 0.35f + time * 1.3f));
+    q_orb.y = (p.y - cam_p.y) - (0.4f + 0.8f * std::sin(p.z * 0.35f + time * 1.3f));
     float d_orb = glm::length(q_orb) - (0.95f + dilation * 0.50f + mids * 0.30f);
 
     glm::vec3 q_ring = p - cam_p;
     q_ring.z = std::fmod(p.z + 7.0f, 14.0f) - 7.0f;
     q_ring.x = std::abs(q_ring.x) - (4.8f + dilation * 0.6f);
-    q_ring.y = p.y - 1.4f;
+    q_ring.y = (p.y - cam_p.y) - 0.2f;
     glm::vec2 t_ring(glm::length(glm::vec2(q_ring.x, q_ring.z)) - 1.8f, q_ring.y);
     float d_ring = glm::length(t_ring) - 0.09f;
 
@@ -367,7 +367,7 @@ void test_dynamic_kinematics_and_speed() {
     brain::SemanticBrain brain;
     core::PhysicsAudioState state{};
 
-    // 3.1 Quiet / Calm Jazz passage: speed must be relaxed ~1.0 - 1.6 m/s
+    // 3.1 Quiet / Calm Jazz passage: speed must be relaxed ~2.5 - 3.5 m/s
     state.stream_a.rms = 0.05f;
     state.stream_b.energy = 0.04f;
     state.stream_b.dissonance = 0.04f;
@@ -378,9 +378,9 @@ void test_dynamic_kinematics_and_speed() {
     }
     float calm_speed = brain.get_semantic_vector().speed_forward;
     std::cout << "  -> Calm Passage Cruising Speed: " << calm_speed << " m/s" << std::endl;
-    assert(calm_speed >= 1.0f && calm_speed <= 1.8f);
+    assert(calm_speed >= 2.0f && calm_speed <= 4.0f);
 
-    // 3.2 Explosive Heavy Metal / Dubstep Drop: speed must surge to 3.5 - 4.8 m/s!
+    // 3.2 Explosive Heavy Metal / Dubstep Drop: speed must surge to 25.0 - 45.0 m/s sprint!
     state.stream_a.rms = 0.45f;
     state.stream_b.energy = 0.50f;
     state.stream_b.is_onset = true;
@@ -391,8 +391,8 @@ void test_dynamic_kinematics_and_speed() {
     }
     float drop_speed = brain.get_semantic_vector().speed_forward;
     std::cout << "  -> Intense Metal/Drop Cruising Speed: " << drop_speed << " m/s\n";
-    assert(drop_speed >= 3.0f && drop_speed <= 4.8f);
-    assert(drop_speed > calm_speed + 1.5f);
+    assert(drop_speed >= 25.0f && drop_speed <= 45.0f);
+    assert(drop_speed > calm_speed + 20.0f);
 
     std::cout << "  [PASS] Speed range is highly dynamic (" << calm_speed << " -> " << drop_speed << " m/s)!\n\n";
 }
@@ -405,7 +405,7 @@ void test_camera_flight_clearance_and_roll() {
 
     director::AutonomousArtDirector director;
     core::AudioSemanticVector semantic{};
-    semantic.speed_forward = 3.8f;
+    semantic.speed_forward = 32.0f;
     semantic.weight_metal = 0.85f;
     semantic.arousal = 0.90f;
 
@@ -471,6 +471,133 @@ void test_sdf_clearance_at_camera() {
     std::cout << "  [PASS] SDF geometry has strict clearance at camera position! Screen will NEVER black out.\n\n";
 }
 
+// -----------------------------------------------------------------------------
+// Test 6: Chill Sub-Bass (Frog Family) vs Explosive Dubstep (Zero False Positives)
+// -----------------------------------------------------------------------------
+void test_chill_sub_bass_vs_dubstep() {
+    std::cout << "[TEST 6] Testing Chill Sub-Bass vs True Dubstep Discrimination...\n";
+
+    // 6.1 Chill track with heavy sub-bass 808 (Frog Family):
+    // Warm deep sub-bass, but calm energy, very low dissonance, gentle/no onsets, no screeching synths
+    {
+        brain::SemanticClassifierML classifier;
+        core::PhysicsAudioState chill_state{};
+        chill_state.stream_b.dissonance = 0.03f;
+        chill_state.stream_b.spectral_centroid_hz = 650.0f;
+        chill_state.stream_b.energy = 0.12f;
+        chill_state.stream_a.rms = 0.10f;
+        chill_state.stream_b.is_onset = false;
+        // Heavy sub-bass, but very little treble / screech
+        chill_state.stream_a.spectrum_bands = {0.85f, 0.40f, 0.18f, 0.12f, 0.05f, 0.02f, 0.01f, 0.00f};
+
+        for (int i = 0; i < 30; ++i) {
+            classifier.accumulate_frame(chill_state, 0.02f);
+        }
+        brain::MLClassificationResult res;
+        bool eval = classifier.maybe_evaluate(res);
+        assert(eval);
+        std::cout << "  -> Frog Family / Chill Sub-Bass Result: L=" << res.prob_liquid 
+                  << " | M=" << res.prob_metal 
+                  << " | C=" << res.prob_cyber 
+                  << " | D=" << res.prob_dubstep << std::endl;
+        assert(res.prob_liquid > res.prob_dubstep);
+        assert(res.prob_liquid > 0.45f);
+        assert(res.prob_dubstep < 0.20f);
+    }
+
+    // 6.2 True Dubstep / Speedcore Drop (Skrillex / Camellia):
+    // Heavy sub-bass + aggressive onsets + screaming high synths (>1.5-3kHz)
+    {
+        brain::SemanticClassifierML classifier;
+        core::PhysicsAudioState dub_state{};
+        dub_state.stream_b.dissonance = 0.18f;
+        dub_state.stream_b.spectral_centroid_hz = 1850.0f;
+        dub_state.stream_b.energy = 0.48f;
+        dub_state.stream_a.rms = 0.42f;
+        // Heavy sub-bass AND loud high synths
+        dub_state.stream_a.spectrum_bands = {0.95f, 0.80f, 0.22f, 0.25f, 0.35f, 0.45f, 0.40f, 0.30f};
+
+        for (int i = 0; i < 30; ++i) {
+            dub_state.stream_b.is_onset = (i % 6 == 0);
+            classifier.accumulate_frame(dub_state, 0.02f);
+        }
+        brain::MLClassificationResult res;
+        bool eval = classifier.maybe_evaluate(res);
+        assert(eval);
+        std::cout << "  -> True Dubstep Result: L=" << res.prob_liquid 
+                  << " | M=" << res.prob_metal 
+                  << " | C=" << res.prob_cyber 
+                  << " | D=" << res.prob_dubstep << std::endl;
+        assert(res.prob_dubstep > res.prob_liquid);
+        assert(res.prob_dubstep > 0.40f);
+    }
+
+    std::cout << "  [PASS] Zero false triggers: Chill sub-bass routes to Liquid; high-flux synths trigger Dubstep!\n\n";
+}
+
+// -----------------------------------------------------------------------------
+// Test 7: Music-Driven Tunnel Elevation & Forward Horizon Camera Visibility
+// -----------------------------------------------------------------------------
+void test_camera_pitch_and_music_driven_elevation() {
+    std::cout << "[TEST 7] Testing Music-Driven Vertical Axis & Camera Floor-Stare Prevention...\n";
+
+    director::AutonomousArtDirector director;
+    core::AudioSemanticVector semantic{};
+
+    float min_cam_y = 999.0f;
+    float min_pitch_y = 999.0f;
+    float max_altitude = -999.0f;
+    float min_altitude = 999.0f;
+
+    // Simulate 300 frames of dynamic musical performance
+    for (int frame = 0; frame < 300; ++frame) {
+        if (frame < 100) {
+            // Calm section: low arousal, low dilation
+            semantic.arousal = 0.15f;
+            semantic.elastic_dilation = 0.10f;
+            semantic.melodic_mids = 0.20f;
+            semantic.is_onset = false;
+            semantic.is_silent = false;
+        } else if (frame < 200) {
+            // Intense buildup: rising arousal, high dilation
+            semantic.arousal = 0.85f;
+            semantic.elastic_dilation = 0.75f;
+            semantic.melodic_mids = 0.60f;
+            semantic.is_onset = (frame % 8 == 0);
+        } else {
+            // Silence / Quiescence
+            semantic.is_silent = true;
+            semantic.arousal = 0.05f;
+        }
+
+        director.update(semantic, 0.02f);
+
+        glm::vec3 pos = director.get_camera_pos();
+        glm::vec3 dir = director.get_camera_dir();
+
+        min_cam_y = std::min(min_cam_y, pos.y);
+        min_pitch_y = std::min(min_pitch_y, dir.y);
+        max_altitude = std::max(max_altitude, pos.y);
+        min_altitude = std::min(min_altitude, pos.y);
+
+        // Strict floor-stare prevention: camera direction Y must NEVER pitch down to floor (must stay > -0.10)
+        assert(dir.y > -0.10f);
+        // Forward horizon dominance: Z must always be primary forward vector
+        assert(dir.z > 0.95f);
+        // Camera altitude clearance
+        assert(pos.y >= 2.0f);
+    }
+
+    std::cout << "  -> Altitude dynamic range: " << min_altitude << "m -> " << max_altitude << "m\n";
+    std::cout << "  -> Minimum look direction Y: " << min_pitch_y << " (strictly above floor: > -0.10)\n";
+    std::cout << "  -> Minimum camera clearance: " << min_cam_y << "m (>= 2.0m guaranteed)\n";
+
+    // Altitude must have climbed significantly during high-energy buildup
+    assert(max_altitude > 2.8f);
+
+    std::cout << "  [PASS] Camera follows music-driven elevation with proud forward horizon visibility (NO floor stare)!\n\n";
+}
+
 int main() {
     std::cout << "=================================================================\n";
     std::cout << "   AUDIO-VOYAGER SYSTEM INTEGRITY & ARCHITECTURAL VERIFICATION   \n";
@@ -481,6 +608,8 @@ int main() {
     test_dynamic_kinematics_and_speed();
     test_camera_flight_clearance_and_roll();
     test_sdf_clearance_at_camera();
+    test_chill_sub_bass_vs_dubstep();
+    test_camera_pitch_and_music_driven_elevation();
 
     std::cout << "=================================================================\n";
     std::cout << "   ALL VERIFICATION TESTS PASSED SUCCESSFULLY! (100% HEALTHY)    \n";
