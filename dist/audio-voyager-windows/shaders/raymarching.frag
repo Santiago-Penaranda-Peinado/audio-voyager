@@ -404,11 +404,12 @@ void main() {
         float spec_power = mix(24.0, 110.0, max(w_metal, w_dubstep));
         float spec = pow(max(dot(n, half_v), 0.0), spec_power);
 
+        vec3 albedo = synesthetic_color * 0.60;
+
         // Fresnel reflection (tamed to prevent ACES saturation and white banding along corridor grazing walls)
         float fresnel = pow(clamp(1.0 - max(dot(n, view_dir), 0.0), 0.0, 1.0), 3.5);
         vec3 fresnel_rim = mix(albedo * 0.35, synesthetic_color * 0.85, fresnel) * (fresnel * 0.55);
 
-        vec3 albedo = synesthetic_color * 0.60;
         vec3 laser_light = synesthetic_color * (diff * 2.2 + spec * 2.5) * l_atten * (1.0 - is_silent * 0.8);
         vec3 ambient = sky_color * (ao * 1.2 + 0.3);
 
