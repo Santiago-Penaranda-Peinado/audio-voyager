@@ -135,12 +135,17 @@ float StreamBPhysics::compute_sethares_dissonance(const std::vector<float>& spec
 float StreamBPhysics::compute_spectral_flatness(const std::vector<float>& spectrum) {
     if (spectrum.size() <= 2) return 0.0f;
     constexpr float EPSILON = 1e-9f;
+    const float bin_hz = static_cast<float>(sample_rate_) / static_cast<float>(core::ANALYSIS_FRAME_SIZE_STREAM_B);
+
+    // Bounded active musical guitar range (300 Hz - 6000 Hz) to avoid streaming codec silence above 16-20 kHz collapsing the geometric mean
+    size_t k_start = std::clamp(static_cast<size_t>(300.0f / bin_hz), size_t{1}, spectrum.size() - 2);
+    size_t k_end = std::clamp(static_cast<size_t>(std::ceil(6000.0f / bin_hz)), k_start + 1, spectrum.size());
+
     float sum_log = 0.0f;
     float sum_power = 0.0f;
     size_t count = 0;
 
-    // Power spectrum Wiener entropy (geometric mean / arithmetic mean), skipping DC bin 0
-    for (size_t k = 1; k < spectrum.size(); ++k) {
+    for (size_t k = k_start; k < k_end; ++k) {
         float power = spectrum[k] * spectrum[k];
         sum_power += power;
         sum_log += std::log(power + EPSILON);
@@ -154,6 +159,34 @@ float StreamBPhysics::compute_spectral_flatness(const std::vector<float>& spectr
     float geometric_mean = std::exp(sum_log / static_cast<float>(count));
     float flatness = geometric_mean / arithmetic_mean;
     return std::clamp(flatness, 0.0f, 1.0f);
+}
+
+float StreamBPhysics::compute_mid_crest_factor(const std::vector<float>& spectrum) {
+    if (spectrum.size() <= 2) return 3.5f;
+    const float bin_hz = static_cast<float>(sample_rate_) / static_cast<float>(core::ANALYSIS_FRAME_SIZE_STREAM_B);
+
+    // Mid-band guitar / melodic range (300 Hz - 6000 Hz)
+    size_t k_start = std::clamp(static_cast<size_t>(300.0f / bin_hz), size_t{1}, spectrum.size() - 2);
+    size_t k_end = std::clamp(static_cast<size_t>(std::ceil(6000.0f / bin_hz)), k_start + 1, spectrum.size());
+
+    float peak = 0.0f;
+    float sum_sq = 0.0f;
+    size_t count = 0;
+
+    for (size_t k = k_start; k < k_end; ++k) {
+        float mag = spectrum[k];
+        peak = std::max(peak, mag);
+        sum_sq += mag * mag;
+        count++;
+    }
+
+    if (count == 0 || peak < 1e-5f) return 3.5f; // Quiet / default dynamic range
+    float rms = std::sqrt(sum_sq / static_cast<float>(count));
+    if (rms < 1e-6f) return 3.5f;
+
+    float crest = peak / rms;
+    // Distorted high-gain guitars have crest factor < 1.8, while jazz/acoustic is > 3.5
+    return std::clamp(crest, 1.0f, 10.0f);
 }
 
 float StreamBPhysics::compute_onset_novelty(const std::vector<float>& spectrum) {
@@ -226,8 +259,11 @@ void StreamBPhysics::process_frame(const float* frame, size_t frame_size, core::
     // B. Sethares Dissonance (Roughness / Vorticity)
     out_snapshot.dissonance = compute_sethares_dissonance(magnitude_spectrum_);
 
-    // B2. Spectral Flatness (Wiener Entropy: Heavy distortion / saturation vs clean harmonic)
+    // B2. Spectral Flatness (Wiener Entropy: Bounded to active musical guitar range 300-6000Hz)
     out_snapshot.spectral_flatness = compute_spectral_flatness(magnitude_spectrum_);
+
+    // B3. Mid-band Crest Factor (Peak vs RMS: distorted high-gain guitars < 1.8, jazz/acoustic > 3.5)
+    out_snapshot.crest_factor_mids = compute_mid_crest_factor(magnitude_spectrum_);
 
     // C. Onset Novelty & Peak Trigger (Kinetic Shockwaves)
     const float novelty = compute_onset_novelty(magnitude_spectrum_);

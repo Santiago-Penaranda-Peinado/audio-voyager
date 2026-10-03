@@ -24,6 +24,31 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     vector_.is_silent = is_silent;
 
     // =========================================================================
+    // 0. 2D WATERFALL SPECTROGRAM & SPATIOTEMPORAL PATTERN ANALYSIS
+    // =========================================================================
+    bool has_mel = false;
+    for (float v : audio_state.stream_a.mel_bands) {
+        if (v > 1e-4f) { has_mel = true; break; }
+    }
+    if (has_mel) {
+        waterfall_analyzer_.push_frame(audio_state.stream_a.mel_bands);
+    } else {
+        waterfall_analyzer_.push_frame_octaves(audio_state.stream_a.spectrum_bands);
+    }
+    const auto& wf_metrics = waterfall_analyzer_.analyze();
+
+    vector_.waterfall_guitar_continuity = wf_metrics.guitar_continuity;
+    vector_.waterfall_kick_regularity   = wf_metrics.four_on_the_floor_regularity;
+    vector_.waterfall_temporal_flux     = wf_metrics.bass_temporal_flux;
+
+    // =========================================================================
+    // 0.5. TEMPO / BPM DINÁMICO (Autocorrelación normalizada y tracking rítmico)
+    // =========================================================================
+    const auto& bands = audio_state.stream_a.spectrum_bands;
+    float raw_sub_bass = bands[0] * 1.8f + bands[1] * 0.9f;
+    update_bpm(raw_sub_bass, audio_state.stream_b.onset_strength, dt, is_silent);
+
+    // =========================================================================
     // 1. LA MENTE: Inferencia de Machine Learning Ágil (~0.5s)
     // =========================================================================
     if (is_silent) {
@@ -36,7 +61,7 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
         last_ml_result_.valence      = 0.65f;
         last_ml_result_.arousal      = 0.05f;
     } else {
-        ml_classifier_.accumulate_frame(audio_state, dt);
+        ml_classifier_.accumulate_frame(audio_state, dt, wf_metrics, last_best_corr_, vector_.bpm);
         MLClassificationResult eval_res;
         if (ml_classifier_.maybe_evaluate(eval_res)) {
             last_ml_result_ = eval_res;
@@ -74,8 +99,6 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     // =========================================================================
     // 2. EL MÚSCULO: Reactividad Física Multi-Banda Instantánea (144 Hz DSP)
     // =========================================================================
-    const auto& bands = audio_state.stream_a.spectrum_bands;
-    float raw_sub_bass = bands[0] * 1.8f + bands[1] * 0.9f;
     float raw_mids = bands[2] * 0.7f + bands[3] * 1.4f + bands[4] * 1.0f;
     float raw_air = bands[6] * 0.9f + bands[7] * 1.8f;
     float raw_energy = std::max(audio_state.stream_b.energy, raw_rms);
@@ -140,15 +163,11 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     vector_.emission_pulse   = smooth_emission_;
     vector_.norm_centroid    = smooth_centroid_;
     vector_.speed_forward    = smooth_speed_;
-
-    // =========================================================================
-    // 3. TEMPO / BPM DINÁMICO (Autocorrelación normalizada y filtro de resonancia)
-    // =========================================================================
-    update_bpm(raw_sub_bass, audio_state.stream_b.onset_strength, dt, is_silent);
 }
 
 void SemanticBrain::update_bpm(float sub_bass, float onset_val, float dt, bool is_silent) {
     if (is_silent) {
+        last_best_corr_ *= std::exp(-2.0f * dt);
         current_bpm_conf_ *= std::exp(-2.0f * dt);
         vector_.bpm = current_bpm_;
         vector_.bpm_confidence = current_bpm_conf_;
@@ -233,6 +252,8 @@ void SemanticBrain::update_bpm(float sub_bass, float onset_val, float dt, bool i
             best_lag = lag;
         }
     }
+
+    last_best_corr_ = std::max(0.0f, best_corr);
 
     if (best_corr > 0.20f && best_lag > MIN_LAG && best_lag < MAX_LAG) {
         // Interpolación parabólica sub-muestra

@@ -36,6 +36,8 @@ private:
     void compute_fft(const std::vector<float>& windowed_signal, std::vector<float>& magnitude_spectrum);
     void extract_frequency_bands(const std::vector<float>& magnitude_spectrum, 
                                  std::array<float, core::FFT_BANDS_COUNT>& out_bands);
+    void extract_mel_bands(const std::vector<float>& magnitude_spectrum, 
+                           std::array<float, core::WATERFALL_BANDS>& out_mel_bands);
 
     SampleRingBuffer& input_ring_buffer_;
     uint32_t sample_rate_;

@@ -288,7 +288,7 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     // 6. Debug HUD (ImGui) - Toggle via F12
     if (tuners_.show_hud) {
         imgui_.begin_frame();
-        imgui_.render_dashboard(tuners_, audio_state, semantic, context_.get_fps(), dt);
+        imgui_.render_dashboard(tuners_, audio_state, semantic, brain_.get_waterfall_analyzer(), context_.get_fps(), dt);
         imgui_.end_frame();
     }
 

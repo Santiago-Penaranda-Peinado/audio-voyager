@@ -29,6 +29,12 @@ float smin(float a, float b, float k) {
     return mix(b, a, h) - k * h * (1.0 - h);
 }
 
+// Polynomial Smooth Maximum (C1 continuous subtraction / intersection)
+float smax(float a, float b, float k) {
+    float h = clamp(0.5 + 0.5 * (a - b) / k, 0.0, 1.0);
+    return mix(b, a, h) + k * h * (1.0 - h);
+}
+
 // 2D Rotation Matrix
 mat2 rot(float a) {
     float s = sin(a), c = cos(a);
@@ -75,7 +81,7 @@ float sdf_liquid(vec3 p, vec3 cam_p, float dilation, float mids, float is_silent
     float d_floating = min(d_orb, d_ring);
     float d_liq_geom = smin(d_ocean, d_floating, 1.10);
     float d_flight_corridor = length(p.xy - cam_p.xy) - (2.2 + dilation * 0.3);
-    return max(d_liq_geom, -d_flight_corridor);
+    return smax(d_liq_geom, -d_flight_corridor, 0.40);
 }
 
 // =============================================================================
@@ -115,7 +121,7 @@ float sdf_metal(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     // 5. GUARANTEED 2.4m Safe Flight Corridor around Camera:
     // Ensures distance is strictly positive at camera position (NEVER black screen!)
     float d_flight_corridor = length(p.xy - cam_p.xy) - (2.4 + dilation * 0.3);
-    return max(d_canyon_geom, -d_flight_corridor);
+    return smax(d_canyon_geom, -d_flight_corridor, 0.40);
 }
 
 // =============================================================================
@@ -146,7 +152,7 @@ float sdf_cyber(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     float d_tech = min(d_ring, min(d_rails, d_eq));
     float d_cyber_geom = min(d_corridor, d_tech);
     float d_flight_corridor = length(p.xy - cam_p.xy) - (2.4 + dilation * 0.3);
-    return max(d_cyber_geom, -d_flight_corridor);
+    return smax(d_cyber_geom, -d_flight_corridor, 0.40);
 }
 
 // =============================================================================
@@ -184,7 +190,7 @@ float sdf_dubstep(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
 
     // Flight clearance corridor
     float d_flight_corridor = length(p.xy - cam_p.xy) - (2.6 + dilation * 0.3);
-    return max(d_dub_geom, -d_flight_corridor);
+    return smax(d_dub_geom, -d_flight_corridor, 0.40);
 }
 
 // =============================================================================
@@ -223,7 +229,7 @@ float map(vec3 p) {
     // GUARANTEED Safe Flight Corridor across all biomes & blend states:
     // Guarantees camera center and near-frustum can NEVER clip or black out under any combination
     float d_global_corridor = length(p.xy - cam_p.xy) - (2.2 + dilation * 0.2);
-    d_interpolated = max(d_interpolated, -d_global_corridor);
+    d_interpolated = smax(d_interpolated, -d_global_corridor, 0.45);
 
     return d_interpolated;
 }
@@ -398,15 +404,15 @@ void main() {
         float spec_power = mix(24.0, 110.0, max(w_metal, w_dubstep));
         float spec = pow(max(dot(n, half_v), 0.0), spec_power);
 
-        // Fresnel reflection
-        float fresnel = pow(clamp(1.0 - max(dot(n, view_dir), 0.0), 0.0, 1.0), 2.8);
-        vec3 iridescence = mix(sky_color, synesthetic_color * 1.3, fresnel);
+        // Fresnel reflection (tamed to prevent ACES saturation and white banding along corridor grazing walls)
+        float fresnel = pow(clamp(1.0 - max(dot(n, view_dir), 0.0), 0.0, 1.0), 3.5);
+        vec3 fresnel_rim = mix(albedo * 0.35, synesthetic_color * 0.85, fresnel) * (fresnel * 0.55);
 
         vec3 albedo = synesthetic_color * 0.60;
-        vec3 laser_light = synesthetic_color * (diff * 2.5 + spec * 3.5) * l_atten * (1.0 - is_silent * 0.8);
+        vec3 laser_light = synesthetic_color * (diff * 2.2 + spec * 2.5) * l_atten * (1.0 - is_silent * 0.8);
         vec3 ambient = sky_color * (ao * 1.2 + 0.3);
 
-        scene_color = (albedo * (ambient + laser_light) + iridescence * fresnel * 2.0) * ao;
+        scene_color = (albedo * (ambient + laser_light) + fresnel_rim) * ao;
 
         // Depth fog (Delayed onset past 35m: crystal clear forward view of tunnel)
         float fog_dist = max(0.0, t - 35.0);

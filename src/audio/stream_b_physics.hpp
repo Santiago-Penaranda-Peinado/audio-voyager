@@ -48,6 +48,7 @@ private:
     float compute_spectral_centroid(const std::vector<float>& spectrum);
     float compute_sethares_dissonance(const std::vector<float>& spectrum);
     float compute_spectral_flatness(const std::vector<float>& spectrum);
+    float compute_mid_crest_factor(const std::vector<float>& spectrum);
     float compute_onset_novelty(const std::vector<float>& spectrum);
 
     SampleRingBuffer& input_ring_buffer_;

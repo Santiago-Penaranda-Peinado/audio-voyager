@@ -6,6 +6,7 @@
 #include "core/types.hpp"
 #include "brain/semantic_classifier_ml.hpp"
 #include "brain/semantic_brain.hpp"
+#include "brain/waterfall_analyzer.hpp"
 #include "director/autonomous_art_director.hpp"
 
 using namespace audio_voyager;
@@ -14,6 +15,12 @@ using namespace audio_voyager;
 inline float smin(float a, float b, float k) {
     float h = std::clamp(0.5f + 0.5f * (b - a) / k, 0.0f, 1.0f);
     return (b * (1.0f - h) + a * h) - k * h * (1.0f - h);
+}
+
+// Polynomial Smooth Maximum ported from GLSL
+inline float smax(float a, float b, float k) {
+    float h = std::clamp(0.5f + 0.5f * (a - b) / k, 0.0f, 1.0f);
+    return (b * (1.0f - h) + a * h) + k * h * (1.0f - h);
 }
 
 // -----------------------------------------------------------------------------
@@ -44,7 +51,7 @@ float test_sdf_liquid(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, 
     float d_floating = std::min(d_orb, d_ring);
     float d_liq_geom = smin(d_ocean, d_floating, 1.10f);
     float d_flight_corridor = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.3f);
-    return std::max(d_liq_geom, -d_flight_corridor);
+    return smax(d_liq_geom, -d_flight_corridor, 0.40f);
 }
 
 float test_sdf_metal(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float time) {
@@ -70,7 +77,7 @@ float test_sdf_metal(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, f
 
     float d_canyon_geom = std::min(d_walls, std::min(d_ground, std::min(d_monolith, d_dagger)));
     float d_flight_corridor = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.4f + dilation * 0.3f);
-    return std::max(d_canyon_geom, -d_flight_corridor);
+    return smax(d_canyon_geom, -d_flight_corridor, 0.40f);
 }
 
 float test_sdf_cyber(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float time) {
@@ -94,7 +101,7 @@ float test_sdf_cyber(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, f
     float d_tech = std::min(d_ring, std::min(d_rails, d_eq));
     float d_cyber_geom = std::min(d_corridor, d_tech);
     float d_flight_corridor = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.4f + dilation * 0.3f);
-    return std::max(d_cyber_geom, -d_flight_corridor);
+    return smax(d_cyber_geom, -d_flight_corridor, 0.40f);
 }
 
 float test_sdf_dubstep(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float time) {
@@ -118,7 +125,7 @@ float test_sdf_dubstep(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids,
 
     float d_dub_geom = std::min(d_void_tunnel, std::min(d_ring_segment, d_resonator));
     float d_flight_corridor = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.6f + dilation * 0.3f);
-    return std::max(d_dub_geom, -d_flight_corridor);
+    return smax(d_dub_geom, -d_flight_corridor, 0.40f);
 }
 
 float test_map(glm::vec3 p, glm::vec3 cam_p, glm::vec4 weights, float dilation, float mids, float ripple, float is_silent, float time) {
@@ -136,7 +143,7 @@ float test_map(glm::vec3 p, glm::vec3 cam_p, glm::vec4 weights, float dilation, 
     }
 
     float d_global_corridor = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
-    return std::max(d_interp, -d_global_corridor);
+    return smax(d_interp, -d_global_corridor, 0.45f);
 }
 
 // -----------------------------------------------------------------------------
@@ -598,6 +605,267 @@ void test_camera_pitch_and_music_driven_elevation() {
     std::cout << "  [PASS] Camera follows music-driven elevation with proud forward horizon visibility (NO floor stare)!\n\n";
 }
 
+// -----------------------------------------------------------------------------
+// Test 8: 2D Waterfall / Spectrogram Spatiotemporal Feature Extraction
+// -----------------------------------------------------------------------------
+void test_waterfall_spatiotemporal_analysis() {
+    std::cout << "[TEST 8] Testing 2D Waterfall / Spectrogram Spatiotemporal Pattern Engine...\n";
+
+    // 8.1 Horizontal Spectral Continuity: Sustained guitar chord vs sparse notes
+    {
+        brain::WaterfallAnalyzer analyzer_sustained;
+        brain::WaterfallAnalyzer analyzer_sparse;
+
+        // Sustained guitar power chord: continuous mid energy (bands 14-46) across 60 frames
+        std::array<float, 64> sustained_frame{};
+        for (size_t b = 14; b <= 46; ++b) {
+            sustained_frame[b] = 0.85f;
+        }
+
+        // Sparse plucks: only every 10th frame has energy, others 0
+        std::array<float, 64> empty_frame{};
+
+        for (int i = 0; i < 60; ++i) {
+            analyzer_sustained.push_frame(sustained_frame);
+            if (i % 10 == 0) {
+                analyzer_sparse.push_frame(sustained_frame);
+            } else {
+                analyzer_sparse.push_frame(empty_frame);
+            }
+        }
+
+        const auto& m_sustained = analyzer_sustained.analyze();
+        const auto& m_sparse = analyzer_sparse.analyze();
+
+        std::cout << "  -> Horizontal Guitar Continuity: Sustained = " 
+                  << m_sustained.guitar_continuity * 100.0f << "% | Sparse = " 
+                  << m_sparse.guitar_continuity * 100.0f << "%\n";
+
+        assert(m_sustained.guitar_continuity > 0.80f);
+        assert(m_sparse.guitar_continuity < 0.35f);
+        assert(m_sustained.guitar_continuity > m_sparse.guitar_continuity + 0.45f);
+    }
+
+    // 8.2 Vertical Periodic Pulses: 4-on-the-Floor Kick Columns vs Irregular/Syncopated
+    {
+        brain::WaterfallAnalyzer analyzer_techno;
+        brain::WaterfallAnalyzer analyzer_syncopated;
+
+        std::array<float, 64> kick_frame{};
+        for (size_t b = 0; b <= 12; ++b) kick_frame[b] = 0.90f; // low bass column
+        std::array<float, 64> rest_frame{};
+
+        // Steady 4-on-the-floor: kick column precisely every 22 frames (~130 BPM at ~48Hz)
+        for (int i = 0; i < 90; ++i) {
+            if (i % 22 == 0) {
+                analyzer_techno.push_frame(kick_frame);
+            } else {
+                analyzer_techno.push_frame(rest_frame);
+            }
+        }
+
+        // Irregular syncopated: sporadic random pulses
+        for (int i = 0; i < 90; ++i) {
+            if (i == 4 || i == 11 || i == 37 || i == 42 || i == 79) {
+                analyzer_syncopated.push_frame(kick_frame);
+            } else {
+                analyzer_syncopated.push_frame(rest_frame);
+            }
+        }
+
+        const auto& m_techno = analyzer_techno.analyze();
+        const auto& m_sync = analyzer_syncopated.analyze();
+
+        std::cout << "  -> 4-on-the-Floor Kick Regularity: Steady = " 
+                  << m_techno.four_on_the_floor_regularity * 100.0f << "% | Syncopated = " 
+                  << m_sync.four_on_the_floor_regularity * 100.0f << "%\n";
+
+        assert(m_techno.four_on_the_floor_regularity > 0.35f);
+        assert(m_sync.four_on_the_floor_regularity < 0.25f);
+    }
+
+    // 8.3 Temporal Flux & Variance: Dubstep Wobble Modulation vs Steady Drone
+    {
+        brain::WaterfallAnalyzer analyzer_wobble;
+        brain::WaterfallAnalyzer analyzer_drone;
+
+        for (int i = 0; i < 60; ++i) {
+            std::array<float, 64> wobble_frame{};
+            float lfo = 0.5f + 0.5f * std::sin(static_cast<float>(i) * 0.8f);
+            for (size_t b = 0; b <= 24; ++b) {
+                wobble_frame[b] = lfo * 0.9f;
+            }
+            analyzer_wobble.push_frame(wobble_frame);
+
+            std::array<float, 64> drone_frame{};
+            for (size_t b = 0; b <= 24; ++b) {
+                drone_frame[b] = 0.60f;
+            }
+            analyzer_drone.push_frame(drone_frame);
+        }
+
+        const auto& m_wobble = analyzer_wobble.analyze();
+        const auto& m_drone = analyzer_drone.analyze();
+
+        std::cout << "  -> Bass Temporal Flux: Wobble LFO = " 
+                  << m_wobble.bass_temporal_flux * 100.0f << "% | Steady Drone = " 
+                  << m_drone.bass_temporal_flux * 100.0f << "%\n";
+
+        assert(m_wobble.bass_temporal_flux > 0.20f);
+        assert(m_drone.bass_temporal_flux < 0.05f);
+    }
+
+    // 8.4 WebSDR Colormap Texture Generation
+    {
+        brain::WaterfallAnalyzer analyzer;
+        std::array<float, 64> ramp_frame{};
+        for (size_t b = 0; b < 64; ++b) ramp_frame[b] = static_cast<float>(b) / 63.0f;
+        for (int i = 0; i < 128; ++i) analyzer.push_frame(ramp_frame);
+
+        std::vector<uint32_t> pixels;
+        analyzer.generate_rgba_texture(pixels);
+        assert(pixels.size() == 64 * 128);
+        for (uint32_t px : pixels) {
+            assert((px & 0xFF000000u) == 0xFF000000u);
+        }
+        std::cout << "  -> WebSDR RGBA Texture: " << pixels.size() << " pixels successfully generated with 100% alpha.\n";
+    }
+
+    std::cout << "  [PASS] 2D Waterfall Spatiotemporal Pattern Engine extracts continuity, periodicity and flux accurately!\n\n";
+}
+
+// -----------------------------------------------------------------------------
+// Test 9: Metal & Distorted Guitar Fix (BMTH, BFMV, Hand of Blood)
+// -----------------------------------------------------------------------------
+void test_metal_distorted_guitar_fix() {
+    std::cout << "[TEST 9] Testing Metal & Distorted Guitar Fix (Bring Me The Horizon / Bullet For My Valentine)...\n";
+
+    // Heavy distorted guitar track with dense mids, low crest factor (< 1.8), high bounded flatness
+    brain::SemanticClassifierML classifier;
+    core::PhysicsAudioState state{};
+    state.stream_b.dissonance = 0.52f;
+    state.stream_b.spectral_flatness = 0.58f; // High bounded flatness (300-6000 Hz)
+    state.stream_b.crest_factor_mids = 1.45f; // Distorted guitar wall crest factor (< 1.8)
+    state.stream_b.spectral_centroid_hz = 2400.0f;
+    state.stream_b.energy = 0.46f;
+    state.stream_a.rms = 0.42f;
+    // Heavy wall of distorted guitars in mids + sub-bass double kicks
+    state.stream_a.spectrum_bands = {0.60f, 0.70f, 0.85f, 0.95f, 0.88f, 0.70f, 0.55f, 0.40f};
+
+    brain::WaterfallMetrics wf{};
+    wf.guitar_continuity = 0.85f; // High sustained power chords
+    wf.horizontal_continuity = 0.75f;
+    wf.four_on_the_floor_regularity = 0.10f;
+    wf.bass_temporal_flux = 0.20f;
+
+    for (int i = 0; i < 30; ++i) {
+        state.stream_b.is_onset = (i % 6 == 0);
+        classifier.accumulate_frame(state, 0.02f, wf, 0.2f, 160.0f);
+    }
+
+    brain::MLClassificationResult res;
+    bool eval = classifier.maybe_evaluate(res);
+    assert(eval);
+
+    std::cout << "  -> BMTH / BFMV Metal Guitar Result: L=" << res.prob_liquid 
+              << " | M=" << res.prob_metal 
+              << " | C=" << res.prob_cyber 
+              << " | D=" << res.prob_dubstep << std::endl;
+
+    assert(res.prob_metal > 0.90f);
+    assert(res.prob_liquid < 0.05f); // STRICTLY NO fallback to Jazz/Liquid
+    assert(res.prob_metal > res.prob_liquid);
+    assert(res.prob_metal > res.prob_cyber);
+    assert(res.prob_metal > res.prob_dubstep);
+
+    std::cout << "  [PASS] Distorted guitar wall reliably triggers SDF_Metal > 90% and NEVER falls into Jazz/Liquid!\n\n";
+}
+
+// -----------------------------------------------------------------------------
+// Test 10: Techno (Cyber) vs Dubstep Disambiguation
+// -----------------------------------------------------------------------------
+void test_techno_vs_dubstep_disambiguation() {
+    std::cout << "[TEST 10] Testing Techno (Cyber) vs Dubstep Disambiguation...\n";
+
+    // 10.1 Steady 4-on-the-Floor Techno at 128 BPM
+    {
+        brain::SemanticClassifierML classifier;
+        core::PhysicsAudioState techno_state{};
+        techno_state.stream_b.dissonance = 0.10f;
+        techno_state.stream_b.spectral_flatness = 0.15f;
+        techno_state.stream_b.crest_factor_mids = 2.8f;
+        techno_state.stream_b.spectral_centroid_hz = 1750.0f;
+        techno_state.stream_b.energy = 0.32f;
+        techno_state.stream_a.rms = 0.30f;
+        // Clean punch bass, steady cadence
+        techno_state.stream_a.spectrum_bands = {0.30f, 0.85f, 0.35f, 0.25f, 0.40f, 0.50f, 0.40f, 0.20f};
+
+        brain::WaterfallMetrics wf{};
+        wf.four_on_the_floor_regularity = 0.82f; // Strong 4-on-the-floor kick columns
+        wf.vertical_pulse_periodicity = 0.85f;
+        wf.bass_temporal_flux = 0.12f;          // Low wobble
+        wf.guitar_continuity = 0.15f;
+
+        for (int i = 0; i < 30; ++i) {
+            techno_state.stream_b.is_onset = (i % 6 == 0);
+            classifier.accumulate_frame(techno_state, 0.02f, wf, 0.85f, 128.0f);
+        }
+
+        brain::MLClassificationResult res;
+        bool eval = classifier.maybe_evaluate(res);
+        assert(eval);
+
+        std::cout << "  -> 128 BPM Techno Input Result: L=" << res.prob_liquid 
+                  << " | M=" << res.prob_metal 
+                  << " | C=" << res.prob_cyber 
+                  << " | D=" << res.prob_dubstep << std::endl;
+
+        assert(res.prob_cyber > 0.60f);
+        assert(res.prob_cyber > res.prob_dubstep);
+        assert(res.prob_cyber > res.prob_liquid);
+    }
+
+    // 10.2 Dubstep Drop with Heavy Sub-Bass Wobble & Syncopation
+    {
+        brain::SemanticClassifierML classifier;
+        core::PhysicsAudioState dub_state{};
+        dub_state.stream_b.dissonance = 0.22f;
+        dub_state.stream_b.spectral_flatness = 0.25f;
+        dub_state.stream_b.crest_factor_mids = 2.2f;
+        dub_state.stream_b.spectral_centroid_hz = 1900.0f;
+        dub_state.stream_b.energy = 0.48f;
+        dub_state.stream_a.rms = 0.42f;
+        // Massive sub-bass dominance over mids + screaming high synths
+        dub_state.stream_a.spectrum_bands = {0.95f, 0.80f, 0.20f, 0.25f, 0.35f, 0.50f, 0.45f, 0.30f};
+
+        brain::WaterfallMetrics wf{};
+        wf.four_on_the_floor_regularity = 0.05f; // Syncopated / half-time beat
+        wf.vertical_pulse_periodicity = 0.20f;
+        wf.bass_temporal_flux = 0.78f;          // Heavy LFO wobble flux
+        wf.guitar_continuity = 0.10f;
+
+        for (int i = 0; i < 30; ++i) {
+            dub_state.stream_b.is_onset = (i % 8 == 0);
+            classifier.accumulate_frame(dub_state, 0.02f, wf, 0.15f, 140.0f);
+        }
+
+        brain::MLClassificationResult res;
+        bool eval = classifier.maybe_evaluate(res);
+        assert(eval);
+
+        std::cout << "  -> Dubstep Wobble Input Result: L=" << res.prob_liquid 
+                  << " | M=" << res.prob_metal 
+                  << " | C=" << res.prob_cyber 
+                  << " | D=" << res.prob_dubstep << std::endl;
+
+        assert(res.prob_dubstep > 0.60f);
+        assert(res.prob_dubstep > res.prob_cyber);
+        assert(res.prob_dubstep > res.prob_liquid);
+    }
+
+    std::cout << "  [PASS] 4-on-the-floor 128 BPM routes to Cyber; syncopated wobble routes to Dubstep!\n\n";
+}
+
 int main() {
     std::cout << "=================================================================\n";
     std::cout << "   AUDIO-VOYAGER SYSTEM INTEGRITY & ARCHITECTURAL VERIFICATION   \n";
@@ -610,6 +878,9 @@ int main() {
     test_sdf_clearance_at_camera();
     test_chill_sub_bass_vs_dubstep();
     test_camera_pitch_and_music_driven_elevation();
+    test_waterfall_spatiotemporal_analysis();
+    test_metal_distorted_guitar_fix();
+    test_techno_vs_dubstep_disambiguation();
 
     std::cout << "=================================================================\n";
     std::cout << "   ALL VERIFICATION TESTS PASSED SUCCESSFULLY! (100% HEALTHY)    \n";

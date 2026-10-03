@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/types.hpp"
+#include "brain/waterfall_analyzer.hpp"
 #include <array>
 #include <vector>
 #include <cmath>
@@ -23,8 +24,10 @@ public:
     SemanticClassifierML();
     ~SemanticClassifierML() = default;
 
-    // Accumulates short-term DSP observations into analysis window
-    void accumulate_frame(const core::PhysicsAudioState& state, float dt);
+    // Accumulates short-term DSP & Waterfall observations into analysis window
+    void accumulate_frame(const core::PhysicsAudioState& state, float dt,
+                          const WaterfallMetrics& waterfall_metrics = {},
+                          float tempo_corr = 0.0f, float bpm = 120.0f);
 
     // Evaluates the embedded neural perception model if interval has elapsed
     bool maybe_evaluate(MLClassificationResult& out_result);
@@ -34,8 +37,8 @@ public:
     }
 
 private:
-    void compute_mel_features(std::array<float, 28>& out_features);
-    void forward_pass(const std::array<float, 28>& input, MLClassificationResult& out_result);
+    void compute_mel_features(std::array<float, 32>& out_features);
+    void forward_pass(const std::array<float, 32>& input, MLClassificationResult& out_result);
 
     // Analysis window accumulation
     float time_since_last_eval_{0.0f};
@@ -47,6 +50,12 @@ private:
     float accumulated_centroid_{0.0f};
     float accumulated_energy_{0.0f};
     float accumulated_onsets_{0.0f};
+    float accumulated_crest_factor_{0.0f};
+    float accumulated_guitar_continuity_{0.0f};
+    float accumulated_kick_regularity_{0.0f};
+    float accumulated_bass_flux_{0.0f};
+    float accumulated_tempo_corr_{0.0f};
+    float accumulated_bpm_{120.0f};
     size_t frame_count_{0};
 
     MLClassificationResult latest_result_{};

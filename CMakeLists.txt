@@ -155,6 +155,7 @@ set(SOURCES
     src/engine/audio_engine.cpp
     src/brain/semantic_classifier_ml.cpp
     src/brain/semantic_brain.cpp
+    src/brain/waterfall_analyzer.cpp
     src/director/autonomous_art_director.cpp
     src/graphics/gl_context.cpp
     src/graphics/fbo.cpp
@@ -177,6 +178,7 @@ set(HEADERS
     src/engine/audio_engine.hpp
     src/brain/semantic_classifier_ml.hpp
     src/brain/semantic_brain.hpp
+    src/brain/waterfall_analyzer.hpp
     src/director/autonomous_art_director.hpp
     src/graphics/gl_context.hpp
     src/graphics/fbo.hpp

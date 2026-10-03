@@ -18,13 +18,21 @@ public:
     [[nodiscard]] const core::AudioSemanticVector& get_semantic_vector() const noexcept {
         return vector_;
     }
+    [[nodiscard]] const WaterfallAnalyzer& get_waterfall_analyzer() const noexcept {
+        return waterfall_analyzer_;
+    }
+    [[nodiscard]] const WaterfallMetrics& get_waterfall_metrics() const noexcept {
+        return waterfall_analyzer_.get_metrics();
+    }
 
 private:
     void update_bpm(float sub_bass, float onset_val, float dt, bool is_silent);
 
     core::AudioSemanticVector vector_{};
+    WaterfallAnalyzer waterfall_analyzer_{};
     SemanticClassifierML ml_classifier_{};
     MLClassificationResult last_ml_result_{};
+    float last_best_corr_{0.0f};
 
     // Slow temporal integrator for Mind / ML biome weights (tau ~ 3.5s)
     float smooth_weight_liquid_{0.25f};

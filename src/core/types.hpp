@@ -21,6 +21,8 @@ constexpr size_t FFT_SIZE_STREAM_A = 1024;
 constexpr size_t FFT_BANDS_COUNT = 8;
 constexpr size_t ANALYSIS_FRAME_SIZE_STREAM_B = 1024;
 constexpr size_t ANALYSIS_HOP_SIZE_STREAM_B = 256;
+constexpr size_t WATERFALL_BANDS = 64;
+constexpr size_t WATERFALL_FRAMES = 128;
 
 inline const std::array<std::string, 8> FFT_BAND_NAMES = {
     "Sub-Bass", "Bass", "Low-Mid", "Mid", "High-Mid", "Presence", "Treble", "Air"
@@ -30,6 +32,7 @@ inline const std::array<std::string, 8> FFT_BAND_NAMES = {
 struct StreamASnapshot {
     std::array<float, RAW_OSCILLOSCOPE_SAMPLES> waveform{};
     std::array<float, FFT_BANDS_COUNT> spectrum_bands{};
+    std::array<float, WATERFALL_BANDS> mel_bands{};
     float rms{0.0f};
     float peak_amplitude{0.0f};
     float latency_ms{0.0f};
@@ -44,7 +47,8 @@ struct StreamBSnapshot {
     float spectral_centroid_hz{0.0f};
     float spectral_centroid_norm{0.0f};
     float dissonance{0.0f};
-    float spectral_flatness{0.0f};
+    float spectral_flatness{0.0f}; // Bounded Spectral Flatness (300 Hz - 6000 Hz active musical guitar range)
+    float crest_factor_mids{0.0f}; // Mid-band Crest Factor (Peak vs RMS: distorted guitar < 1.8, jazz > 3.5)
     float onset_strength{0.0f};
     bool is_onset{false};
     float energy{0.0f};
@@ -95,6 +99,11 @@ struct AudioSemanticVector {
     float camera_roll{0.0f};       // Camera bank / roll angle (radians)
     float bpm{120.0f};             // Detected Tempo
     float bpm_confidence{0.5f};    // Tempo Confidence (decays to 0 on silence)
+
+    // 4. 2D Waterfall Spatiotemporal Pattern Insights
+    float waterfall_guitar_continuity{0.0f}; // Horizontal continuity in guitar mids [0, 1]
+    float waterfall_kick_regularity{0.0f};   // Vertical 4-on-the-floor kick pulse regularity [0, 1]
+    float waterfall_temporal_flux{0.0f};     // Bass temporal modulation/wobble [0, 1]
 };
 
 // Runtime GUI tuners (F12 Secret HUD)
