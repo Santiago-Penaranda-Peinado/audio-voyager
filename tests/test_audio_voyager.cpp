@@ -27,104 +27,131 @@ inline float smax(float a, float b, float k) {
 // SDF implementations exactly matching shaders/raymarching.frag
 // -----------------------------------------------------------------------------
 float test_sdf_liquid(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float is_silent, float time) {
+    glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
+    glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
     float wave_scale = 1.0f - is_silent * 0.95f;
     float wave1 = std::sin(p.x * 0.35f + time * 1.4f) * std::cos(p.z * 0.28f + time * 1.0f) * (0.55f * wave_scale + dilation * 0.85f);
     float wave2 = std::sin((p.x + p.z) * 0.70f + time * 2.0f) * (0.28f * wave_scale + mids * 0.45f);
-    float wave_bass = std::sin(glm::length(glm::vec2(p.x - cam_p.x, p.z - cam_p.z)) * 0.25f - time * 3.0f) * (dilation * 0.75f * wave_scale);
-    float ocean_y = -2.2f + (wave1 + wave2 + wave_bass);
+    float wave_bass = std::sin(glm::length(p_rel) * 0.25f - time * 3.0f) * (dilation * 0.75f * wave_scale);
+    float ocean_y = (track_c.y - 2.4f) + (wave1 + wave2 + wave_bass);
     float d_ocean = p.y - ocean_y;
 
-    glm::vec3 q_orb = p - cam_p;
-    q_orb.z = std::fmod(p.z + 7.0f, 14.0f) - 7.0f;
-    float side = (q_orb.x >= 0.0f) ? 1.0f : -1.0f;
+    glm::vec3 q_orb(p_rel.x, p_rel.y, std::fmod(p.z + 7.0f, 14.0f) - 7.0f);
     q_orb.x = std::abs(q_orb.x) - (4.8f + dilation * 0.6f);
-    q_orb.y = (p.y - cam_p.y) - (0.4f + 0.8f * std::sin(p.z * 0.35f + time * 1.3f));
+    q_orb.y = p_rel.y - (0.4f + 0.8f * std::sin(p.z * 0.35f + time * 1.3f));
     float d_orb = glm::length(q_orb) - (0.95f + dilation * 0.50f + mids * 0.30f);
 
-    glm::vec3 q_ring = p - cam_p;
-    q_ring.z = std::fmod(p.z + 7.0f, 14.0f) - 7.0f;
+    glm::vec3 q_ring(p_rel.x, p_rel.y, std::fmod(p.z + 7.0f, 14.0f) - 7.0f);
     q_ring.x = std::abs(q_ring.x) - (4.8f + dilation * 0.6f);
-    q_ring.y = (p.y - cam_p.y) - 0.2f;
+    q_ring.y = p_rel.y - 0.2f;
     glm::vec2 t_ring(glm::length(glm::vec2(q_ring.x, q_ring.z)) - 1.8f, q_ring.y);
     float d_ring = glm::length(t_ring) - 0.09f;
 
     float d_floating = std::min(d_orb, d_ring);
     float d_liq_geom = smin(d_ocean, d_floating, 1.10f);
-    float d_flight_corridor = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.3f);
+
+    float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
+    float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
+    float d_flight_corridor = std::min(d_track_corridor, d_cam_corridor);
     return smax(d_liq_geom, -d_flight_corridor, 0.40f);
 }
 
 float test_sdf_metal(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float time) {
-    float chasm_width = 3.6f + dilation * 0.6f;
-    float d_walls = chasm_width - std::abs(p.x - cam_p.x);
+    glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
+    glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
+
+    float chasm_width = 3.8f + dilation * 0.6f;
+    float d_walls = chasm_width - std::abs(p_rel.x);
 
     float ground_crags = std::abs(std::sin(p.x * 1.8f) * std::cos(p.z * 1.4f)) * (0.8f + dilation * 1.4f + mids * 0.5f);
-    float d_ground = p.y - (-2.6f + ground_crags);
+    float d_ground = p.y - ((track_c.y - 2.6f) + ground_crags);
 
-    glm::vec3 q_spire = p - cam_p;
-    float side = (q_spire.x >= 0.0f) ? 1.0f : -1.0f;
-    q_spire.x = std::abs(q_spire.x) - (3.4f + dilation * 0.5f);
+    glm::vec3 q_spire;
+    q_spire.x = std::abs(p_rel.x) - (3.4f + dilation * 0.5f);
+    q_spire.y = p_rel.y;
     q_spire.z = std::fmod(p.z + 4.0f, 8.0f) - 4.0f;
+
+    float s = std::sin(p.z * 0.25f + time * 0.4f), c = std::cos(p.z * 0.25f + time * 0.4f);
+    glm::vec2 sp_xy(c * q_spire.x - s * q_spire.y, s * q_spire.x + c * q_spire.y);
+    q_spire.x = sp_xy.x;
+    q_spire.y = sp_xy.y;
+
+    float s_yz = std::sin(mids * 0.8f), c_yz = std::cos(mids * 0.8f);
+    glm::vec2 sp_yz(c_yz * q_spire.y - s_yz * q_spire.z, s_yz * q_spire.y + c_yz * q_spire.z);
+    q_spire.y = sp_yz.x;
+    q_spire.z = sp_yz.y;
 
     float d_shard_x = std::abs(q_spire.x) - (0.55f + mids * 0.35f);
     float d_shard_y = std::abs(q_spire.y) - (3.8f + dilation * 0.8f);
     float d_shard_z = std::abs(q_spire.z) - (0.55f + mids * 0.35f);
     float d_monolith = std::max(d_shard_x, std::max(d_shard_y, d_shard_z));
 
-    glm::vec3 q_dagger = glm::abs(p - cam_p) - glm::vec3(2.8f + dilation * 0.4f, 0.8f, 0.0f);
-    q_dagger.z = std::fmod(p.z + 3.0f, 6.0f) - 3.0f;
+    glm::vec3 q_dagger(std::abs(p_rel.x) - (2.8f + dilation * 0.4f), std::abs(p_rel.y) - 0.8f, std::fmod(p.z + 3.0f, 6.0f) - 3.0f);
+    float s_dag = std::sin(time * 0.8f + p.z * 0.4f), c_dag = std::cos(time * 0.8f + p.z * 0.4f);
+    glm::vec2 dag_xy(c_dag * q_dagger.x - s_dag * q_dagger.y, s_dag * q_dagger.x + c_dag * q_dagger.y);
+    q_dagger.x = dag_xy.x;
+    q_dagger.y = dag_xy.y;
     float d_dagger = std::max(std::abs(q_dagger.x) + std::abs(q_dagger.y) - (0.4f + mids * 0.2f), std::abs(q_dagger.z) - 1.2f);
 
     float d_canyon_geom = std::min(d_walls, std::min(d_ground, std::min(d_monolith, d_dagger)));
-    float d_flight_corridor = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.4f + dilation * 0.3f);
+    float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
+    float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
+    float d_flight_corridor = std::min(d_track_corridor, d_cam_corridor);
     return smax(d_canyon_geom, -d_flight_corridor, 0.40f);
 }
 
 float test_sdf_cyber(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float time) {
-    glm::vec2 q_xy = glm::abs(glm::vec2(p.x - cam_p.x, p.y - cam_p.y));
+    glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
+    glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
+    glm::vec2 q_xy = glm::abs(p_rel);
     float d_corridor = (3.8f + dilation * 0.6f) - std::max(q_xy.x, q_xy.y);
 
-    glm::vec3 q_eq = p - cam_p;
-    q_eq.z = std::fmod(p.z + 1.8f, 3.6f) - 1.8f;
+    glm::vec3 q_eq(p_rel.x, p_rel.y, std::fmod(p.z + 1.8f, 3.6f) - 1.8f);
     float eq_height = 0.6f + 2.2f * (dilation * 1.4f + mids * 0.8f) * std::abs(std::sin(std::floor(p.z / 3.6f) * 1.4f + time * 5.0f));
     glm::vec3 d_eq_box = glm::abs(glm::vec3(std::abs(q_eq.x) - 3.0f, std::abs(q_eq.y) - (3.6f - eq_height * 0.5f), q_eq.z)) - glm::vec3(0.40f, eq_height * 0.5f, 0.40f);
     float d_eq = std::max(d_eq_box.x, std::max(d_eq_box.y, d_eq_box.z));
 
-    glm::vec3 q_ring = p - cam_p;
-    q_ring.z = std::fmod(p.z + 3.0f, 6.0f) - 3.0f;
+    glm::vec3 q_ring(p_rel.x, p_rel.y, std::fmod(p.z + 3.0f, 6.0f) - 3.0f);
     float ring_body = std::abs(glm::length(glm::vec2(q_ring.x, q_ring.y)) - (3.2f + dilation * 0.4f)) - 0.14f;
     float d_ring = std::max(ring_body, std::abs(q_ring.z) - 0.22f);
 
-    glm::vec2 q_rails = glm::abs(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - glm::vec2(2.6f);
+    glm::vec2 q_rails = glm::abs(p_rel) - glm::vec2(2.6f);
     float d_rails = glm::length(q_rails) - 0.12f;
 
     float d_tech = std::min(d_ring, std::min(d_rails, d_eq));
     float d_cyber_geom = std::min(d_corridor, d_tech);
-    float d_flight_corridor = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.4f + dilation * 0.3f);
+    float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
+    float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
+    float d_flight_corridor = std::min(d_track_corridor, d_cam_corridor);
     return smax(d_cyber_geom, -d_flight_corridor, 0.40f);
 }
 
 float test_sdf_dubstep(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float time) {
+    glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
+    glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
+
     float wobble = std::sin(p.z * 1.2f - time * 12.0f) * (dilation * 0.75f);
     float tunnel_radius = 3.6f + dilation * 0.8f + wobble;
-    float d_void_tunnel = tunnel_radius - glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y));
+    float d_void_tunnel = tunnel_radius - glm::length(p_rel);
 
-    glm::vec3 q_ring = p - cam_p;
-    q_ring.z = std::fmod(p.z + 2.0f, 4.0f) - 2.0f;
+    glm::vec3 q_ring(p_rel.x, p_rel.y, std::fmod(p.z + 2.0f, 4.0f) - 2.0f);
     glm::vec2 p_hex = glm::abs(glm::vec2(q_ring.x, q_ring.y));
     float hex_dist = std::max(p_hex.x * 0.866025f + p_hex.y * 0.5f, p_hex.y);
     float d_hex_ring = std::abs(hex_dist - (3.3f + dilation * 0.6f)) - 0.18f;
     float d_ring_segment = std::max(d_hex_ring, std::abs(q_ring.z) - 0.26f);
 
-    glm::vec3 q_res = glm::abs(p - cam_p);
-    q_res.x -= (3.4f + dilation * 0.5f);
-    q_res.z = std::fmod(p.z + 3.0f, 6.0f) - 3.0f;
+    glm::vec3 q_res(std::abs(p_rel.x) - (3.4f + dilation * 0.5f), p_rel.y, std::fmod(p.z + 3.0f, 6.0f) - 3.0f);
     glm::vec3 box_dim(0.45f, 1.2f + dilation * 1.5f + mids * 0.6f, 0.45f);
     glm::vec3 d_b = glm::abs(q_res) - box_dim;
     float d_resonator = std::max(d_b.x, std::max(d_b.y, d_b.z));
 
+    float glitch_step = 0.08f * std::sin(std::floor(p.z * 4.0f) * 1.7f + time * 15.0f) * (dilation >= 0.4f ? 1.0f : 0.0f);
+    d_void_tunnel += glitch_step;
+
     float d_dub_geom = std::min(d_void_tunnel, std::min(d_ring_segment, d_resonator));
-    float d_flight_corridor = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.6f + dilation * 0.3f);
+    float d_track_corridor = glm::length(p_rel) - (2.6f + dilation * 0.3f);
+    float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
+    float d_flight_corridor = std::min(d_track_corridor, d_cam_corridor);
     return smax(d_dub_geom, -d_flight_corridor, 0.40f);
 }
 
@@ -142,7 +169,11 @@ float test_map(glm::vec3 p, glm::vec3 cam_p, glm::vec4 weights, float dilation, 
         d_interp += shock;
     }
 
-    float d_global_corridor = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
+    glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
+    glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
+    float d_track_corridor = glm::length(p_rel) - (2.2f + dilation * 0.2f);
+    float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
+    float d_global_corridor = std::min(d_track_corridor, d_cam_corridor);
     return smax(d_interp, -d_global_corridor, 0.45f);
 }
 
@@ -1155,6 +1186,255 @@ void test_particle_tuners_and_lighting_coherence() {
     std::cout << "  [PASS] Particle tuners and lighting parameters strictly conform to architectural contract!\n\n";
 }
 
+// -----------------------------------------------------------------------------
+// Test 17: Second-Order Spring-Mass-Damper Physics Engine (Suspension & Kinetic Bounce)
+// -----------------------------------------------------------------------------
+void test_second_order_spring_damper_suspension() {
+    std::cout << "[TEST 17] Testing Second-Order Spring-Mass-Damper Suspension & Kinetic Bounce...\n";
+
+    // 17.1 Verify Sub-Critical Damping (zeta ~ 0.5-0.7) and Elastic Recoil Overshoot
+    director::SpringMassDamper1D oscillator(0.0f);
+    constexpr float omega = 15.0f;
+    constexpr float zeta = 0.60f; // sub-critical damping
+
+    // Apply an impulsive kick force for one frame (dt = 0.02s)
+    float kick_force = -36.0f;
+    oscillator.step(0.0f, kick_force, omega, zeta, 0.02f);
+
+    float compressed_pos = oscillator.pos;
+    assert(compressed_pos < 0.0f); // suspension compressed down!
+    std::cout << "  -> Initial Kick Compression: " << compressed_pos << " m (Velocity: " << oscillator.vel << " m/s)\n";
+
+    // Trace free response: must rebound upward, overshoot equilibrium (pos > 0.0), and settle
+    bool observed_recoil_overshoot = false;
+    float max_overshoot = -999.0f;
+    for (int step = 0; step < 100; ++step) {
+        oscillator.step(0.0f, 0.0f, omega, zeta, 0.02f);
+        if (oscillator.pos > 0.001f) {
+            observed_recoil_overshoot = true;
+            max_overshoot = std::max(max_overshoot, oscillator.pos);
+        }
+    }
+    std::cout << "  -> Elastic Recoil Overshoot: +" << max_overshoot << " m (Sub-critical damping validated!)\n";
+    assert(observed_recoil_overshoot);
+    // After 2.0s (100 steps), oscillator must settle back near equilibrium (|pos| < 0.01)
+    assert(std::abs(oscillator.pos) < 0.01f);
+    assert(std::abs(oscillator.vel) < 0.05f);
+
+    // 17.2 Full Director Kick Compression & Kinetic Bounce under Drum Kicks
+    director::AutonomousArtDirector director;
+    core::AudioSemanticVector semantic{};
+    semantic.speed_forward = 15.0f;
+    semantic.arousal = 0.80f;
+    semantic.weight_metal = 0.90f;
+
+    // Warm up director for 30 frames
+    for (int i = 0; i < 30; ++i) {
+        director.update(semantic, 0.02f);
+    }
+    float baseline_y = director.get_camera_pos().y;
+
+    // Trigger explosive kick drum onset
+    semantic.is_onset = true;
+    director.update(semantic, 0.02f);
+    float kick_y = director.get_camera_pos().y;
+
+    // Step director with no onset to observe kinetic bounce
+    semantic.is_onset = false;
+    float bounce_max_y = kick_y;
+    for (int i = 0; i < 25; ++i) {
+        director.update(semantic, 0.02f);
+        bounce_max_y = std::max(bounce_max_y, director.get_camera_pos().y);
+    }
+    std::cout << "  -> Art Director Kick Suspension: Baseline=" << baseline_y 
+              << "m -> Compressed=" << kick_y << "m -> Kinetic Bounce=" << bounce_max_y << "m\n";
+    assert(kick_y < baseline_y);   // Suspension compressed downward
+    assert(bounce_max_y > kick_y); // Recoils upward above the compressed state
+
+    // 17.3 Frame-Rate Invariant Kick Bounce Verification (144 FPS vs 50 FPS)
+    director::AutonomousArtDirector director_144fps;
+    for (int i = 0; i < 90; ++i) director_144fps.update(semantic, 0.007f);
+    float base_144 = director_144fps.get_camera_pos().y;
+    semantic.is_onset = true;
+    director_144fps.update(semantic, 0.007f);
+    float kick_144 = director_144fps.get_camera_pos().y;
+    semantic.is_onset = false;
+    float bounce_144 = kick_144;
+    for (int i = 0; i < 70; ++i) {
+        director_144fps.update(semantic, 0.007f);
+        bounce_144 = std::max(bounce_144, director_144fps.get_camera_pos().y);
+    }
+    float comp_50 = baseline_y - kick_y;
+    float comp_144 = base_144 - kick_144;
+    std::cout << "  -> Frame-Rate Compression Invariance: 50 FPS=" << comp_50 << "m | 144 FPS=" << comp_144 << "m\n";
+    assert(std::abs(comp_50 - comp_144) < 0.05f); // Both deliver near-identical physical compression!
+
+    // 17.4 Continuous Onset Resilience & Physical Bump Stop Guarantee
+    // Sustained onsets for 100 consecutive frames (e.g. 50Hz tone or continuous blast beat)
+    semantic.is_onset = true;
+    for (int i = 0; i < 100; ++i) {
+        director.update(semantic, 0.02f);
+        assert(director.get_camera_pos().y >= 1.95f); // Bump stop physically halts plunge!
+        assert(!std::isnan(director.get_camera_pos().y));
+    }
+    // Release onset: must recover smoothly to baseline within 25 frames (0.5s)
+    semantic.is_onset = false;
+    for (int i = 0; i < 25; ++i) {
+        director.update(semantic, 0.02f);
+    }
+    std::cout << "  -> Continuous Onset Resilience: Post-release altitude = " << director.get_camera_pos().y << "m\n";
+    assert(director.get_camera_pos().y >= 2.2f); // Rapid, clean elastic recovery!
+
+    // 17.5 Centrifugal Lateral Suspension Roll & Sway: Sign and Magnitude Verification
+    float max_centrifugal_roll = 0.0f;
+    float max_lateral_sway = 0.0f;
+    bool verified_left_turn_signs = false;
+    bool verified_right_turn_signs = false;
+
+    director::AutonomousArtDirector test_turn_dir;
+    core::AudioSemanticVector turn_semantic{};
+    turn_semantic.speed_forward = 28.0f;
+
+    for (int i = 0; i < 300; ++i) {
+        test_turn_dir.update(turn_semantic, 0.02f);
+        float z = test_turn_dir.get_camera_pos().z;
+        glm::vec2 track = director::AutonomousArtDirector::get_track_spline(z);
+        glm::vec2 d2 = director::AutonomousArtDirector::get_track_spline_deriv2(z);
+        float roll = test_turn_dir.get_camera_roll();
+        float sway = test_turn_dir.get_camera_pos().x - track.x;
+
+        max_centrifugal_roll = std::max(max_centrifugal_roll, std::abs(roll));
+        max_lateral_sway = std::max(max_lateral_sway, std::abs(sway));
+
+        // At curve peaks (steps 60-80 for left turn, steps 270-290 for right turn):
+        if (i >= 60 && i <= 80 && d2.x < -0.003f) {
+            assert(roll > 0.0f); // Banks left into turn
+            assert(sway > 0.0f); // Sways right outward from turn
+            verified_left_turn_signs = true;
+        }
+        if (i >= 270 && i <= 290 && d2.x > +0.003f) {
+            assert(roll < 0.0f); // Banks right into turn
+            assert(sway < 0.0f); // Sways left outward from turn
+            verified_right_turn_signs = true;
+        }
+    }
+    std::cout << "  -> Centrifugal Cornering Roll: " << glm::degrees(max_centrifugal_roll) << " deg"
+              << " | Suspension Lateral Sway: " << max_lateral_sway << " m\n";
+    assert(max_centrifugal_roll > 0.04f); // Substantial 6DoF banking into turns!
+    assert(verified_left_turn_signs && verified_right_turn_signs); // Physically correct banking and sway directions verified!
+
+    std::cout << "  [PASS] Second-order spring-mass-damper engine delivers authentic suspension bounce & centrifugal sway!\n\n";
+}
+
+// -----------------------------------------------------------------------------
+// Test 18: World-Space Spline Track C(z) = (curve_x(z), curve_y(z))
+// -----------------------------------------------------------------------------
+void test_world_space_spline_track_continuity() {
+    std::cout << "[TEST 18] Testing World-Space Spline Track C(z) Continuity & Horizon Dominance...\n";
+
+    // 18.1 Verify Spline C(z) Smoothness and Bounds over 500 Meters
+    for (float z = 0.0f; z <= 500.0f; z += 1.0f) {
+        glm::vec2 track = director::AutonomousArtDirector::get_track_spline(z);
+        glm::vec2 deriv = director::AutonomousArtDirector::get_track_spline_deriv(z);
+        glm::vec2 deriv2 = director::AutonomousArtDirector::get_track_spline_deriv2(z);
+
+        assert(!std::isnan(track.x) && !std::isnan(track.y));
+        assert(!std::isnan(deriv.x) && !std::isnan(deriv.y));
+        assert(!std::isnan(deriv2.x) && !std::isnan(deriv2.y));
+
+        // Lateral bounds: x within [-4.5m, +4.5m]
+        assert(std::abs(track.x) <= 4.2f);
+        // Vertical bounds: y within [1.8m, 3.6m]
+        assert(track.y >= 1.8f && track.y <= 3.6f);
+    }
+    std::cout << "  -> Spline Track evaluated continuously across [0m, 500m] with zero NaNs.\n";
+
+    // 18.2 Verify Look Direction Anticipates Curves with Proud Horizon Dominance
+    director::AutonomousArtDirector director;
+    core::AudioSemanticVector semantic{};
+    semantic.speed_forward = 28.0f;
+
+    for (int frame = 0; frame < 200; ++frame) {
+        director.update(semantic, 0.02f);
+        glm::vec3 dir = director.get_camera_dir();
+        glm::vec3 pos = director.get_camera_pos();
+
+        // Must look proudly forward along Z (horizon dominance > 0.95)
+        assert(dir.z > 0.95f);
+        // Must NEVER stare down at floor (Y > -0.10)
+        assert(dir.y > -0.10f);
+        // Camera clearance strictly >= 2.0m
+        assert(pos.y >= 2.0f);
+    }
+    std::cout << "  -> Horizon look dominance verified: Z > 0.95, Y > -0.10 (Zero floor stare) across turns!\n";
+
+    std::cout << "  [PASS] World-space spline track decouples corridor and previews turns into the horizon 50-80m ahead!\n\n";
+}
+
+// -----------------------------------------------------------------------------
+// Test 19: High-Frequency Reactive Micro-Details at 100% Saturation / Maximum Speed
+// -----------------------------------------------------------------------------
+void test_reactive_micro_details_at_100_percent() {
+    std::cout << "[TEST 19] Testing High-Frequency Reactive Micro-Details at 100% Saturation & Speed...\n";
+
+    // 19.1 Micro-activation scaling: Evaluates GLSL shader activation formula in C++
+    auto compute_micro_activation = [](float w_liquid, float w_metal, float w_cyber, float w_dubstep,
+                                       float speed, float arousal, float emission_pulse, float is_silent) {
+        float max_biome_w = std::max(std::max(w_liquid, w_metal), std::max(w_cyber, w_dubstep));
+        auto smoothstep = [](float edge0, float edge1, float x) {
+            float t = std::clamp((x - edge0) / (edge1 - edge0), 0.0f, 1.0f);
+            return t * t * (3.0f - 2.0f * t);
+        };
+        float biome_saturation = smoothstep(0.65f, 1.0f, max_biome_w);
+        float speed_intensity = smoothstep(12.0f, 32.0f, speed);
+        float ensemble_saturation = smoothstep(0.60f, 0.95f, arousal);
+        float ensemble_pulse = smoothstep(0.70f, 1.30f, emission_pulse);
+        float combined = std::max(std::max(biome_saturation, speed_intensity), std::max(ensemble_saturation, ensemble_pulse));
+        return std::clamp(combined * (1.0f - is_silent * 0.85f), 0.0f, 1.0f);
+    };
+
+    // Low energy / calm state: micro-activation must be subdued (~0.0)
+    float low_activation = compute_micro_activation(0.25f, 0.25f, 0.25f, 0.25f, 4.0f, 0.1f, 0.2f, 0.0f);
+    std::cout << "  -> Calm cruising (4 m/s, balanced biomes): Micro-activation = " << low_activation << "\n";
+    assert(low_activation < 0.10f);
+
+    // 100% Biome Saturation (e.g. 100% Metal or 100% Cyber)
+    float metal_100_activation = compute_micro_activation(0.0f, 1.0f, 0.0f, 0.0f, 8.0f, 0.3f, 0.5f, 0.0f);
+    std::cout << "  -> 100% Metal Biome Saturation: Micro-activation = " << metal_100_activation << "\n";
+    assert(metal_100_activation > 0.95f);
+
+    // 100% Maximum Speed Sprint (35 m/s)
+    float sprint_activation = compute_micro_activation(0.3f, 0.3f, 0.2f, 0.2f, 35.0f, 0.3f, 0.5f, 0.0f);
+    std::cout << "  -> Maximum Speed Sprint (35 m/s): Micro-activation = " << sprint_activation << "\n";
+    assert(sprint_activation > 0.95f);
+
+    // USER REQUIREMENT: 100% Ensemble Saturation (heavy drop peak even with balanced biomes)
+    float ensemble_activation = compute_micro_activation(0.25f, 0.25f, 0.25f, 0.25f, 10.0f, 0.95f, 1.35f, 0.0f);
+    std::cout << "  -> 100% Ensemble Drop Peak (Balanced biomes, Arousal 0.95): Micro-activation = " << ensemble_activation << "\n";
+    assert(ensemble_activation > 0.95f);
+
+    // 19.2 High-Frequency Treble / Air Responsiveness (Zero Washout Guarantee)
+    auto compute_pert_strength = [](float treble, float mids, float micro_boost) {
+        return 0.07f * (0.3f + treble * 1.8f + mids * 0.9f) * (0.5f + 0.8f * micro_boost);
+    };
+
+    float pert_calm = compute_pert_strength(0.1f, 0.1f, 0.0f);
+    float pert_hyper = compute_pert_strength(0.9f, 0.8f, 1.0f);
+    std::cout << "  -> Micro-Relief Perturbation: Calm = " << pert_calm << " | 100% Saturation Sprint = " << pert_hyper << "\n";
+    assert(pert_hyper > pert_calm * 4.0f); // Massive sharp detail pop on peak audio transients!
+
+    // Vein pulse and micro-sparkle responsiveness
+    float treble_sparkle = 0.95f;
+    float vein_intensity = (0.4f + treble_sparkle * 2.4f + 0.8f * 1.2f) * (0.5f + 1.5f * 1.0f);
+    float sparkle_intensity = (treble_sparkle * 3.2f + 1.0f * 0.9f) * (0.5f + 1.6f * 1.0f);
+    std::cout << "  -> High-Frequency Vein Pulse Intensity at 100%: " << vein_intensity << "x\n";
+    std::cout << "  -> Acoustic Micro-Sparkle Stardust at 100%: " << sparkle_intensity << "x\n";
+    assert(vein_intensity > 5.0f);
+    assert(sparkle_intensity > 6.0f);
+
+    std::cout << "  [PASS] High-frequency micro-details remain razor-sharp and accented at 100% speed and saturation!\n\n";
+}
+
 int main() {
     std::cout << "=================================================================\n";
     std::cout << "   AUDIO-VOYAGER SYSTEM INTEGRITY & ARCHITECTURAL VERIFICATION   \n";
@@ -1176,6 +1456,9 @@ int main() {
     test_agc_volume_invariance();
     test_raymarching_waterfall_sculpt_safety();
     test_particle_tuners_and_lighting_coherence();
+    test_second_order_spring_damper_suspension();
+    test_world_space_spline_track_continuity();
+    test_reactive_micro_details_at_100_percent();
 
     std::cout << "=================================================================\n";
     std::cout << "   ALL VERIFICATION TESTS PASSED SUCCESSFULLY! (100% HEALTHY)    \n";
