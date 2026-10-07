@@ -14,6 +14,18 @@ SemanticBrain::SemanticBrain() {
     last_ml_result_.prob_dubstep = 0.25f;
     last_ml_result_.valence      = 0.5f;
     last_ml_result_.arousal      = 0.5f;
+
+    smooth_color_primary_ = core::PALETTE_LIQUID.primary;
+    smooth_color_accent_  = core::PALETTE_LIQUID.accent;
+    smooth_color_zenith_  = core::PALETTE_LIQUID.zenith;
+    smooth_part_base_     = core::PALETTE_LIQUID.particle_base;
+    smooth_part_peak_     = core::PALETTE_LIQUID.particle_peak;
+
+    vector_.color_primary   = smooth_color_primary_;
+    vector_.color_accent    = smooth_color_accent_;
+    vector_.color_zenith    = smooth_color_zenith_;
+    vector_.color_part_base = smooth_part_base_;
+    vector_.color_part_peak = smooth_part_peak_;
 }
 
 void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt) {
@@ -45,7 +57,9 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     // 0.5. TEMPO / BPM DINÁMICO (Autocorrelación normalizada y tracking rítmico)
     // =========================================================================
     const auto& bands = audio_state.stream_a.spectrum_bands;
-    float raw_sub_bass = bands[0] * 1.8f + bands[1] * 0.9f;
+    float sb_a = bands[0] * 1.8f + bands[1] * 0.9f;
+    float sb_b = audio_state.stream_b.band_sub_bass * 1.8f + audio_state.stream_b.band_bass * 0.9f;
+    float raw_sub_bass = std::max(sb_a, sb_b);
     update_bpm(raw_sub_bass, audio_state.stream_b.onset_strength, dt, is_silent);
 
     // =========================================================================
@@ -97,10 +111,63 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     vector_.arousal = is_silent ? 0.05f : smooth_arousal_;
 
     // =========================================================================
-    // 2. EL MÚSCULO: Reactividad Física Multi-Banda Instantánea (144 Hz DSP)
+    // 1.5. PALETAS COHERENTES & MORFOLOGÍA TEMPORAL CONTINUA (tau ~ 1.8s)
     // =========================================================================
-    float raw_mids = bands[2] * 0.7f + bands[3] * 1.4f + bands[4] * 1.0f;
-    float raw_air = bands[6] * 0.9f + bands[7] * 1.8f;
+    glm::vec3 target_primary = 
+        vector_.weight_liquid  * core::PALETTE_LIQUID.primary +
+        vector_.weight_metal   * core::PALETTE_METAL.primary +
+        vector_.weight_cyber   * core::PALETTE_CYBER.primary +
+        vector_.weight_dubstep * core::PALETTE_DUBSTEP.primary;
+
+    glm::vec3 target_accent = 
+        vector_.weight_liquid  * core::PALETTE_LIQUID.accent +
+        vector_.weight_metal   * core::PALETTE_METAL.accent +
+        vector_.weight_cyber   * core::PALETTE_CYBER.accent +
+        vector_.weight_dubstep * core::PALETTE_DUBSTEP.accent;
+
+    glm::vec3 target_zenith = 
+        vector_.weight_liquid  * core::PALETTE_LIQUID.zenith +
+        vector_.weight_metal   * core::PALETTE_METAL.zenith +
+        vector_.weight_cyber   * core::PALETTE_CYBER.zenith +
+        vector_.weight_dubstep * core::PALETTE_DUBSTEP.zenith;
+
+    glm::vec3 target_part_base = 
+        vector_.weight_liquid  * core::PALETTE_LIQUID.particle_base +
+        vector_.weight_metal   * core::PALETTE_METAL.particle_base +
+        vector_.weight_cyber   * core::PALETTE_CYBER.particle_base +
+        vector_.weight_dubstep * core::PALETTE_DUBSTEP.particle_base;
+
+    glm::vec3 target_part_peak = 
+        vector_.weight_liquid  * core::PALETTE_LIQUID.particle_peak +
+        vector_.weight_metal   * core::PALETTE_METAL.particle_peak +
+        vector_.weight_cyber   * core::PALETTE_CYBER.particle_peak +
+        vector_.weight_dubstep * core::PALETTE_DUBSTEP.particle_peak;
+
+    const float alpha_palette = 1.0f - std::exp(-dt / 1.8f);
+    smooth_color_primary_   += alpha_palette * (target_primary   - smooth_color_primary_);
+    smooth_color_accent_    += alpha_palette * (target_accent    - smooth_color_accent_);
+    smooth_color_zenith_    += alpha_palette * (target_zenith    - smooth_color_zenith_);
+    smooth_part_base_       += alpha_palette * (target_part_base - smooth_part_base_);
+    smooth_part_peak_       += alpha_palette * (target_part_peak - smooth_part_peak_);
+
+    vector_.color_primary   = smooth_color_primary_;
+    vector_.color_accent    = smooth_color_accent_;
+    vector_.color_zenith    = smooth_color_zenith_;
+    vector_.color_part_base = smooth_part_base_;
+    vector_.color_part_peak = smooth_part_peak_;
+
+    // =========================================================================
+    // 2. EL MÚSCULO: Reactividad Física Multi-Banda Instantánea (144 Hz DSP)
+    // Fusionando Stream A (8 bandas incluyendo Presence [5]) y Stream B (5 bandas físicas)
+    // =========================================================================
+    float mids_a = bands[2] * 0.6f + bands[3] * 1.2f + bands[4] * 0.9f + bands[5] * 0.8f;
+    float mids_b = audio_state.stream_b.band_mids * 1.4f;
+    float raw_mids = std::max(mids_a, mids_b);
+
+    float air_a = bands[5] * 0.4f + bands[6] * 0.9f + bands[7] * 1.8f;
+    float air_b = audio_state.stream_b.band_treble * 0.8f + audio_state.stream_b.band_air * 1.8f;
+    float raw_air = std::max(air_a, air_b);
+
     float raw_energy = std::max(audio_state.stream_b.energy, raw_rms);
     float raw_centroid_hz = audio_state.stream_b.spectral_centroid_hz;
 
@@ -114,19 +181,19 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
         smooth_speed_    += (1.0f - std::exp(-4.0f * dt)) * (0.20f - smooth_speed_);
         vector_.is_onset = false;
     } else {
-        // 2.1 Dilatación Elástica de Cavidad / Olas (Sub-Bass potente)
-        float target_dilation = std::clamp(raw_sub_bass * 0.65f + (audio_state.stream_b.is_onset ? 0.35f : 0.0f), 0.0f, 1.0f);
+        // 2.1 Dilatación Elástica de Cavidad / Olas (Sub-Bass potente de Stream A + Stream B)
+        float target_dilation = std::clamp(raw_sub_bass * 0.60f + audio_state.stream_b.band_sub_bass * 0.40f + (audio_state.stream_b.is_onset ? 0.35f : 0.0f), 0.0f, 1.0f);
         smooth_dilation_ += (1.0f - std::exp(-30.0f * dt)) * (target_dilation - smooth_dilation_);
 
         // 2.2 Ondulación Superficial (Transitorios / Onsets)
         float target_ripple = audio_state.stream_b.is_onset ? (audio_state.stream_b.onset_strength * 0.70f) : 0.0f;
         smooth_ripple_ += (1.0f - std::exp(-45.0f * dt)) * (target_ripple - smooth_ripple_);
 
-        // 2.3 Resonancia de Medios (Voz / Melodía / Guitarras)
+        // 2.3 Resonancia de Medios (Voz / Melodía / Guitarras + Presencia de banda 5)
         float target_mids = std::clamp(raw_mids * 0.65f, 0.0f, 1.0f);
         smooth_mids_ += (1.0f - std::exp(-22.0f * dt)) * (target_mids - smooth_mids_);
 
-        // 2.4 Destellos de Agudos / Aire (Hi-Hats / Platillos)
+        // 2.4 Destellos de Agudos / Aire (Hi-Hats / Platillos / Sibilancia)
         float target_air = std::clamp(raw_air * 0.85f, 0.0f, 1.0f);
         smooth_air_ += (1.0f - std::exp(-35.0f * dt)) * (target_air - smooth_air_);
 

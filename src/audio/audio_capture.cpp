@@ -56,6 +56,76 @@ void AudioCapture::process_audio_frames(const float* input_frames, size_t frame_
             std::copy_n(&input_frames[processed], batch_size, mono_buffer);
         }
 
+        // Automatic Gain Control (AGC) & Volume Normalization
+        // Spotify/YouTube volume-invariant calibration
+        float effective_gain = manual_gain_.load(std::memory_order_relaxed);
+
+        if (agc_enabled_.load(std::memory_order_relaxed)) {
+            float batch_sum_sq = 0.0f;
+            float batch_peak = 0.0f;
+            for (size_t i = 0; i < batch_size; ++i) {
+                float abs_val = std::abs(mono_buffer[i]);
+                batch_peak = std::max(batch_peak, abs_val);
+                batch_sum_sq += abs_val * abs_val;
+            }
+            float batch_rms = std::sqrt(batch_sum_sq / static_cast<float>(batch_size));
+            float batch_level = std::max(batch_rms, batch_peak * 0.35f);
+
+            const float dt_batch = static_cast<float>(batch_size) / static_cast<float>(config_.sample_rate);
+            if (batch_level > agc_envelope_) {
+                // Fast attack ~15ms (prevents sudden ear-shattering or sensor blowup)
+                const float alpha_attack = 1.0f - std::exp(-dt_batch / 0.015f);
+                agc_envelope_ += alpha_attack * (batch_level - agc_envelope_);
+            } else {
+                // Smooth decay ~3.0s (musical relaxation without pumping artifacts)
+                const float alpha_decay = 1.0f - std::exp(-dt_batch / 3.0f);
+                agc_envelope_ += alpha_decay * (batch_level - agc_envelope_);
+            }
+
+            // Nominal target calibration: target RMS ~ 0.24 (balanced energetic cruising)
+            constexpr float NOMINAL_TARGET = 0.24f;
+            constexpr float NOISE_FLOOR = 0.003f;
+            constexpr float QUIET_THRESHOLD = 0.015f;
+
+            float agc_gain = 1.0f;
+            if (agc_envelope_ > QUIET_THRESHOLD) {
+                agc_gain = std::clamp(NOMINAL_TARGET / agc_envelope_, 0.20f, 5.0f);
+            } else if (agc_envelope_ > NOISE_FLOOR) {
+                // Smooth Hermite smoothstep crossfade between 1.0x (silence) and target gain
+                float raw_target_gain = std::clamp(NOMINAL_TARGET / agc_envelope_, 0.20f, 5.0f);
+                float t = (agc_envelope_ - NOISE_FLOOR) / (QUIET_THRESHOLD - NOISE_FLOOR);
+                float smooth_t = t * t * (3.0f - 2.0f * t);
+                agc_gain = 1.0f + smooth_t * (raw_target_gain - 1.0f);
+            } else {
+                agc_gain = 1.0f; // Silence / quiescence: do not amplify thermal noise floor
+            }
+
+            effective_gain *= agc_gain;
+        }
+
+        current_gain_.store(effective_gain, std::memory_order_relaxed);
+
+        // Musical soft-knee saturation to prevent harsh digital clipping
+        auto soft_saturate = [](float x) noexcept -> float {
+            constexpr float threshold = 0.75f;
+            constexpr float headroom = 1.0f - threshold;
+            if (std::abs(x) <= threshold) {
+                return x;
+            }
+            if (x > threshold) {
+                float excess = x - threshold;
+                return threshold + headroom * std::tanh(excess / headroom);
+            } else {
+                float excess = -x - threshold;
+                return -(threshold + headroom * std::tanh(excess / headroom));
+            }
+        };
+
+        // Apply calibrated gain with musical soft-saturation
+        for (size_t i = 0; i < batch_size; ++i) {
+            mono_buffer[i] = std::clamp(soft_saturate(mono_buffer[i] * effective_gain), -1.0f, 1.0f);
+        }
+
         // Push non-blocking to Stream A and Stream B lock-free ring buffers
         stream_a_buffer_.push_n(mono_buffer, batch_size);
         stream_b_buffer_.push_n(mono_buffer, batch_size);
@@ -118,7 +188,8 @@ void AudioCapture::start_synthetic_generator() {
 
     synthetic_thread_ = std::thread([this]() {
         constexpr size_t BATCH_SIZE = 256;
-        float frame_buffer[BATCH_SIZE];
+        const size_t channels = std::max<size_t>(1, config_.channels);
+        std::vector<float> frame_buffer(BATCH_SIZE * channels);
         double phase1 = 0.0, phase2 = 0.0, phase3 = 0.0, phase_sweep = 0.0;
         double kick_phase = 0.0;
         double kick_decay = 0.0;
@@ -173,12 +244,13 @@ void AudioCapture::start_synthetic_generator() {
                     kick_sample
                 );
 
-                frame_buffer[i] = sample;
+                for (size_t c = 0; c < channels; ++c) {
+                    frame_buffer[i * channels + c] = sample;
+                }
             }
 
-            // Push generated batch
-            stream_a_buffer_.push_n(frame_buffer, BATCH_SIZE);
-            stream_b_buffer_.push_n(frame_buffer, BATCH_SIZE);
+            // Route through full AGC, volume normalization and ring buffer dispatcher
+            process_audio_frames(frame_buffer.data(), BATCH_SIZE);
 
             next_tick += sleep_duration;
             std::this_thread::sleep_until(next_tick);

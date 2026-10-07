@@ -163,14 +163,24 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
             ImGui::Separator();
         }
 
-        // 6. Optical Post-Process Overrides
+        // 6. Audio Normalization & AGC controls
+        if (ImGui::CollapsingHeader("🎚️ INPUT NORMALIZATION & GAIN (AGC)", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Checkbox("Automatic Gain Control (AGC)", &tuners.agc_enabled);
+            ImGui::SliderFloat("Input Gain Multiplier (Mouse Scroll)", &tuners.input_gain, 0.10f, 5.00f, "%.2fx");
+            ImGui::Text("Active Dynamic Gain: %.2fx", audio_state.stream_b.dynamic_gain);
+            ImGui::ProgressBar(audio_state.stream_a.rms, ImVec2(-1, 0), "Normalized Input RMS");
+            ImGui::ProgressBar(audio_state.stream_a.peak_amplitude, ImVec2(-1, 0), "Normalized Peak Amplitude");
+            ImGui::Separator();
+        }
+
+        // 7. Optical Post-Process Overrides
         if (ImGui::CollapsingHeader("✨ OPTICAL POST-PROCESS CONTROLS", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::SliderFloat("Bloom Intensity", &tuners.bloom_intensity, 0.0f, 3.0f, "%.2f");
             ImGui::SliderFloat("Chromatic Aberration", &tuners.chromatic_aberration, 0.0f, 0.05f, "%.4f");
             ImGui::SliderFloat("Speed Multiplier", &tuners.speed_multiplier, 0.2f, 3.0f, "%.2f");
         }
 
-        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "\nShortcuts: [F11] Fullscreen | [F12] Toggle Debug HUD | [ESC] Exit");
+        ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "\nShortcuts: [F11] Fullscreen | [F12] Toggle Debug HUD | [Scroll] Input Gain | [ESC] Exit");
     }
     ImGui::End();
 }

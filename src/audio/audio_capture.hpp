@@ -42,6 +42,13 @@ public:
     // Internal real-time audio callback called by miniaudio
     void process_audio_frames(const float* input_frames, size_t frame_count) noexcept;
 
+    // AGC & Input Gain Sensitivity Controls
+    void set_input_gain(float gain) noexcept { manual_gain_.store(gain, std::memory_order_relaxed); }
+    [[nodiscard]] float get_input_gain() const noexcept { return manual_gain_.load(std::memory_order_relaxed); }
+    void set_agc_enabled(bool enabled) noexcept { agc_enabled_.store(enabled, std::memory_order_relaxed); }
+    [[nodiscard]] bool is_agc_enabled() const noexcept { return agc_enabled_.load(std::memory_order_relaxed); }
+    [[nodiscard]] float get_dynamic_gain() const noexcept { return current_gain_.load(std::memory_order_relaxed); }
+
 private:
     bool init_miniaudio_device();
     void start_synthetic_generator();
@@ -60,6 +67,12 @@ private:
     // Synthetic generator thread if in test mode or if loopback hardware is unavailable
     std::thread synthetic_thread_;
     std::atomic<bool> stop_synthetic_{false};
+
+    // Automatic Gain Control (AGC) state
+    std::atomic<float> manual_gain_{1.0f};
+    std::atomic<bool> agc_enabled_{true};
+    std::atomic<float> current_gain_{1.0f};
+    float agc_envelope_{0.25f};
 };
 
 } // namespace audio_voyager::audio

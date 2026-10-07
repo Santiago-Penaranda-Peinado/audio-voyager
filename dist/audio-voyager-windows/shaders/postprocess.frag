@@ -12,6 +12,8 @@ uniform float u_glitch_amount;
 uniform float u_speed_lines;
 uniform float u_time;
 uniform vec2 u_resolution;
+uniform float u_melodic_mids;
+uniform vec2 u_sun_pos;
 
 // ACES Filmic Tone Mapping Curve
 vec3 ACESFilm(vec3 x) {
@@ -50,6 +52,30 @@ void main() {
     // Clean optical bloom compositing
     vec3 bloom = texture(u_bloom_blur, sample_uv).rgb;
     vec3 composite = scene_hdr + bloom * u_bloom_intensity;
+
+    // High-Performance Screen-Space Radial Volumetric God Rays (32 samples from Horizon Sun)
+    if (u_melodic_mids > 0.015) {
+        vec2 sun_pos = (u_sun_pos.x == 0.0 && u_sun_pos.y == 0.0) ? vec2(0.5, 0.52) : u_sun_pos;
+        vec2 ray_delta = (sample_uv - sun_pos) * (1.0 / 32.0) * 0.85;
+        vec2 ray_uv = sample_uv;
+        vec3 god_rays = vec3(0.0);
+        float illumination = 1.0;
+        const float decay = 0.96;
+        const float weight = 0.045;
+
+        for (int i = 0; i < 32; ++i) {
+            ray_uv -= ray_delta;
+            vec3 ray_sample = texture(u_scene_hdr, clamp(ray_uv, 0.0, 1.0)).rgb;
+            float sample_lum = dot(ray_sample, vec3(0.2126, 0.7152, 0.0722));
+            if (sample_lum > 0.35) {
+                god_rays += ray_sample * illumination * weight;
+            }
+            illumination *= decay;
+        }
+
+        float ray_gain = clamp(u_melodic_mids * 1.6, 0.0, 2.2);
+        composite += god_rays * ray_gain;
+    }
 
     // Radial speed lines (warp streaks during high-speed sprints / beat drops)
     if (u_speed_lines > 0.02) {

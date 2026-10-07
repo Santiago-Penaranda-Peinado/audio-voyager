@@ -52,6 +52,13 @@ private:
     float smooth_centroid_{0.5f};
     float smooth_speed_{1.3f};
 
+    // Continuous Temporal Low-Pass Filtering for Cohesive Biome Colors (tau ~ 1.8s)
+    glm::vec3 smooth_color_primary_{0.08f, 0.42f, 0.88f};
+    glm::vec3 smooth_color_accent_{1.00f, 0.72f, 0.22f};
+    glm::vec3 smooth_color_zenith_{0.005f, 0.012f, 0.028f};
+    glm::vec3 smooth_part_base_{0.06f, 0.38f, 0.85f};
+    glm::vec3 smooth_part_peak_{1.00f, 0.75f, 0.25f};
+
     // BPM autocorrelation tracking
     static constexpr size_t ONSET_HISTORY_SIZE = 360;
     static constexpr float BPM_HOP_INTERVAL = 0.022f; // ~45 Hz sampling

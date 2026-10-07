@@ -137,30 +137,9 @@ void ParticleSystem::update(float dt, float total_time,
     ubo_data.physics_scales[2] = 2.5f;
     ubo_data.physics_scales[3] = 1.2f;
 
-    // Smooth continuous barycentric particle colors across all 4 biomes
-    glm::vec3 col_base_liquid(0.95f, 0.65f, 0.25f);
-    glm::vec3 col_peak_liquid(0.35f, 0.85f, 1.0f);
-
-    glm::vec3 col_base_metal(0.95f, 0.14f, 0.05f);
-    glm::vec3 col_peak_metal(1.0f,  0.60f, 0.10f);
-
-    glm::vec3 col_base_cyber(0.0f,  0.75f, 1.0f);
-    glm::vec3 col_peak_cyber(1.0f,  0.05f, 0.85f);
-
-    glm::vec3 col_base_dubstep(0.12f, 1.0f,  0.35f);
-    glm::vec3 col_peak_dubstep(0.90f, 0.15f, 1.0f);
-
-    glm::vec3 blended_base = 
-        semantic.weight_liquid  * col_base_liquid +
-        semantic.weight_metal   * col_base_metal +
-        semantic.weight_cyber   * col_base_cyber +
-        semantic.weight_dubstep * col_base_dubstep;
-
-    glm::vec3 blended_peak = 
-        semantic.weight_liquid  * col_peak_liquid +
-        semantic.weight_metal   * col_peak_metal +
-        semantic.weight_cyber   * col_peak_cyber +
-        semantic.weight_dubstep * col_peak_dubstep;
+    // Cohesive, smooth temporally filtered particle colors
+    glm::vec3 blended_base = semantic.color_part_base;
+    glm::vec3 blended_peak = semantic.color_part_peak;
 
     ubo_data.color_base[0] = blended_base.r;
     ubo_data.color_base[1] = blended_base.g;

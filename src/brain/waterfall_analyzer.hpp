@@ -252,6 +252,17 @@ public:
         }
     }
 
+    // Generates a 64 x 128 raw float energy buffer for GPU texture upload (GL_R16F)
+    void get_raw_energy_matrix(std::vector<float>& out_energy) const {
+        out_energy.resize(BANDS * FRAMES);
+        for (size_t y = 0; y < FRAMES; ++y) {
+            const auto& frame = get_frame_chronological(y);
+            for (size_t x = 0; x < BANDS; ++x) {
+                out_energy[y * BANDS + x] = frame[x];
+            }
+        }
+    }
+
     // Access to chronological frame (0 = newest, FRAMES-1 = oldest)
     [[nodiscard]] const std::array<float, BANDS>& get_frame_chronological(size_t age_index) const {
         size_t clamped_age = std::min(age_index, FRAMES - 1);

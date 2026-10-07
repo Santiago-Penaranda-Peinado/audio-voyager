@@ -105,7 +105,8 @@ void PostProcessPipeline::blur_bloom(uint32_t input_tex, int width, int height) 
 
 void PostProcessPipeline::render(uint32_t scene_hdr_tex, int width, int height, 
                                 float bloom_intensity, float chromatic_aberration, 
-                                float glitch_amount, float speed_lines, float time) {
+                                float glitch_amount, float speed_lines, float time,
+                                float melodic_mids, glm::vec2 sun_pos) {
     resize(width, height);
 
     // 1. Multi-pass Gaussian Blur on downsampled texture
@@ -125,6 +126,8 @@ void PostProcessPipeline::render(uint32_t scene_hdr_tex, int width, int height,
     postprocess_shader_.set_float("u_speed_lines", speed_lines);
     postprocess_shader_.set_float("u_time", time);
     postprocess_shader_.set_vec2("u_resolution", glm::vec2(static_cast<float>(width), static_cast<float>(height)));
+    postprocess_shader_.set_float("u_melodic_mids", melodic_mids);
+    postprocess_shader_.set_vec2("u_sun_pos", sun_pos);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, scene_hdr_tex);

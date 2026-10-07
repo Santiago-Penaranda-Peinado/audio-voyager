@@ -70,7 +70,8 @@ void OscilloscopeRenderer::update(const core::StreamASnapshot& stream_a,
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void OscilloscopeRenderer::render(const glm::mat4& view_proj, float time, float rms, float peak) {
+void OscilloscopeRenderer::render(const glm::mat4& view_proj, float time, float rms, float peak,
+                                  const glm::vec3& color_primary, const glm::vec3& color_accent) {
     if (!shader_.is_valid()) return;
 
     shader_.bind();
@@ -78,6 +79,8 @@ void OscilloscopeRenderer::render(const glm::mat4& view_proj, float time, float 
     shader_.set_float("u_time", time);
     shader_.set_float("u_rms", rms);
     shader_.set_float("u_peak", peak);
+    shader_.set_vec3("u_color_primary", color_primary);
+    shader_.set_vec3("u_color_accent", color_accent);
 
     glBindVertexArray(vao_);
     glDrawArrays(GL_LINE_STRIP, 0, static_cast<GLsizei>(vertices_.size()));

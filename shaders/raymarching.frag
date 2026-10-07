@@ -14,7 +14,13 @@ layout(std140, binding = 0) uniform RaymarchingUniforms {
     vec4 u_physical_params;   // x: elastic_dilation, y: surface_ripple, z: emission_pulse, w: norm_centroid
     vec4 u_laser_pos;         // xyz: laser light position, w: arousal
     vec4 u_extra_physics;     // x: melodic_mids, y: treble_sparkle, z: is_silent, w: bpm
+    vec4 u_color_primary;     // rgb: smoothed primary color
+    vec4 u_color_accent;      // rgb: smoothed accent color
+    vec4 u_color_zenith;      // rgb: smoothed zenith sky color
 };
+
+uniform mat4 u_view_proj;
+uniform sampler2D u_waterfall_energy;
 
 // Continuous HSV to RGB Converter
 vec3 hsv2rgb(vec3 c) {
@@ -219,6 +225,14 @@ float map(vec3 p) {
     // 4-Way Barycentric Interpolation
     float d_interpolated = w_liquid * d_l + w_metal * d_m + w_cyber * d_c + w_dubstep * d_d;
 
+    // Sculpt 3D tunnel/terrain walls using 2D Waterfall energy matrix (safe forward coords)
+    float forward_t = clamp((p.z - cam_p.z) / 45.0, 0.0, 1.0);
+    vec2 p_rel = p.xy - cam_p.xy;
+    float angle = (dot(p_rel, p_rel) > 1e-7) ? atan(p_rel.y, p_rel.x) : 0.0;
+    float freq_u = fract(angle / 6.2831853 + 0.5);
+    float wf_energy = textureLod(u_waterfall_energy, vec2(freq_u, forward_t), 0.0).r;
+    d_interpolated -= wf_energy * 0.45;
+
     // Transient Onset Shockwave Ripple
     if (ripple > 0.01) {
         float r = length(p - cam_p);
@@ -259,22 +273,11 @@ float calcAO(vec3 p, vec3 n) {
 }
 
 // Smooth Spherical Starfield & Celestial Sky
-vec3 getSkyColor(vec3 rd, float base_hue, float arousal, float is_silent, 
-                 float w_liquid, float w_metal, float w_cyber, float w_dubstep) {
+vec3 getSkyColor(vec3 rd, float arousal, float is_silent) {
     float horizon = smoothstep(-0.2, 0.45, rd.y);
     
-    // Ambient night sky colored by genre
-    vec3 zenith_liquid  = vec3(0.008, 0.012, 0.024);
-    vec3 zenith_metal   = vec3(0.030, 0.005, 0.008); // Smoldering volcanic red/black
-    vec3 zenith_cyber   = vec3(0.006, 0.018, 0.035); // Electric cyber cyan/indigo
-    vec3 zenith_dubstep = vec3(0.008, 0.025, 0.018); // Toxic neon green/violet abyss
-
-    vec3 zenith_color = w_liquid  * zenith_liquid + 
-                        w_metal   * zenith_metal + 
-                        w_cyber   * zenith_cyber + 
-                        w_dubstep * zenith_dubstep;
-
-    vec3 horizon_color = hsv2rgb(vec3(base_hue, 0.65, mix(0.18 + arousal * 0.08, 0.06, is_silent)));
+    vec3 zenith_color = u_color_zenith.rgb;
+    vec3 horizon_color = mix(u_color_accent.rgb * 0.35, u_color_primary.rgb * 0.55, 0.5) * mix(0.18 + arousal * 0.08, 0.06, is_silent);
     vec3 sky = mix(horizon_color, zenith_color, horizon);
 
     // Spherical 3D Stars
@@ -290,7 +293,7 @@ vec3 getSkyColor(vec3 rd, float base_hue, float arousal, float is_silent,
     if (rd.y > 0.1) {
         float aurora_wave = sin(rd.x * 6.0 + u_resolution_time.z * 0.4) * cos(rd.z * 4.0);
         float aurora_band = smoothstep(0.3, 0.6, rd.y + aurora_wave * 0.15) * smoothstep(0.8, 0.5, rd.y);
-        vec3 aurora_color = hsv2rgb(vec3(fract(base_hue + 0.35), 0.75, 0.30 * (1.0 - is_silent * 0.8)));
+        vec3 aurora_color = u_color_accent.rgb * 0.45 * (1.0 - is_silent * 0.8);
         sky += aurora_color * aurora_band * 0.6;
     }
 
@@ -321,28 +324,12 @@ void main() {
     float arousal        = u_laser_pos.w;
     float is_silent      = u_extra_physics.z;
 
-    // Continuous Synesthetic color palette by genre blending
-    float val = (0.70 + emission_pulse * 0.30) * (1.0 - is_silent * 0.6);
-    float hue_liquid  = fract(0.12 + spec_centroid * 0.22 + time * 0.003);
-    float hue_metal   = fract(0.98 + spec_centroid * 0.08 + time * 0.002);
-    float hue_cyber   = fract(0.55 + spec_centroid * 0.26 + time * 0.004);
-    float hue_dubstep = fract(0.33 + spec_centroid * 0.38 + time * 0.006);
-
-    vec3 col_liquid  = hsv2rgb(vec3(hue_liquid, 0.78, val));
-    vec3 col_metal   = hsv2rgb(vec3(hue_metal, 0.92, val * 1.15));
-    vec3 col_cyber   = hsv2rgb(vec3(hue_cyber, 0.85, val));
-    vec3 col_dubstep = hsv2rgb(vec3(hue_dubstep, 0.94, val * 1.20));
-
-    vec3 synesthetic_color = 
-        w_liquid  * col_liquid +
-        w_metal   * col_metal +
-        w_cyber   * col_cyber +
-        w_dubstep * col_dubstep;
-
-    float base_hue = fract(w_liquid * hue_liquid + w_metal * hue_metal + w_cyber * hue_cyber + w_dubstep * hue_dubstep);
+    // Cohesive, temporally low-pass filtered color palette (flicker-free)
+    vec3 synesthetic_color = u_color_primary.rgb * (0.80 + emission_pulse * 0.35) * (1.0 - is_silent * 0.6);
+    vec3 accent_color = u_color_accent.rgb;
 
     // Deep cosmic background sky
-    vec3 sky_color = getSkyColor(rd, base_hue, arousal, is_silent, w_liquid, w_metal, w_cyber, w_dubstep);
+    vec3 sky_color = getSkyColor(rd, arousal, is_silent);
 
     // Raymarching loop (Expanded render distance to 160m for grand tunnel vista)
     float t = 0.05;
@@ -377,8 +364,11 @@ void main() {
     if (hit) {
         vec3 n = calcNormal(p);
         frag_color = vec4(n * 0.5 + 0.5, 1.0);
+        vec4 clip = u_view_proj * vec4(p, 1.0);
+        gl_FragDepth = (clip.w > 0.001) ? clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0) : 1.0;
     } else {
         frag_color = vec4(sky_color, 1.0);
+        gl_FragDepth = 1.0;
     }
     return;
 #endif
@@ -404,13 +394,35 @@ void main() {
         float spec_power = mix(24.0, 110.0, max(w_metal, w_dubstep));
         float spec = pow(max(dot(n, half_v), 0.0), spec_power);
 
-        vec3 albedo = synesthetic_color * 0.60;
+        vec3 albedo = synesthetic_color * 0.65;
 
-        // Fresnel reflection (tamed to prevent ACES saturation and white banding along corridor grazing walls)
+        // Biome-specific accent highlights & emissive veins (Multi-tonal harmonized materials)
+        float biome_accent_pattern = 0.0;
+        if (w_metal > 0.10) {
+            float magma_vein = smoothstep(0.70, 0.95, abs(sin(p.x * 2.2 + p.z * 1.5)));
+            biome_accent_pattern += magma_vein * w_metal * (0.55 + emission_pulse * 0.45);
+        }
+        if (w_cyber > 0.10) {
+            float grid_line = max(smoothstep(0.92, 0.98, sin(p.z * 3.14159 * 0.5)), 
+                                  smoothstep(0.92, 0.98, sin(angle * 4.0)));
+            biome_accent_pattern += grid_line * w_cyber * 0.75;
+        }
+        if (w_dubstep > 0.10) {
+            float ring_glow = smoothstep(0.65, 0.98, sin(p.z * 1.57079 - time * 6.0));
+            biome_accent_pattern += ring_glow * w_dubstep * 0.65;
+        }
+        if (w_liquid > 0.10) {
+            float caustics = smoothstep(0.55, 0.95, sin(p.x * 1.2 + time) * cos(p.z * 1.2 - time));
+            biome_accent_pattern += caustics * w_liquid * 0.40;
+        }
+
+        albedo = mix(albedo, accent_color * 0.95, clamp(biome_accent_pattern, 0.0, 0.85));
+
+        // Fresnel reflection (harmonized with secondary accent color)
         float fresnel = pow(clamp(1.0 - max(dot(n, view_dir), 0.0), 0.0, 1.0), 3.5);
-        vec3 fresnel_rim = mix(albedo * 0.35, synesthetic_color * 0.85, fresnel) * (fresnel * 0.55);
+        vec3 fresnel_rim = mix(albedo * 0.35, accent_color * 0.90, fresnel) * (fresnel * 0.55);
 
-        vec3 laser_light = synesthetic_color * (diff * 2.2 + spec * 2.5) * l_atten * (1.0 - is_silent * 0.8);
+        vec3 laser_light = (synesthetic_color * (diff * 2.2) + accent_color * (spec * 2.5)) * l_atten * (1.0 - is_silent * 0.8);
         vec3 ambient = sky_color * (ao * 1.2 + 0.3);
 
         scene_color = (albedo * (ambient + laser_light) + fresnel_rim) * ao;
@@ -427,4 +439,12 @@ void main() {
     scene_color += accum_glow;
 
     frag_color = vec4(scene_color, 1.0);
+
+    // Write calculated NDC depth to gl_FragDepth for accurate depth buffer occlusion
+    if (hit) {
+        vec4 clip = u_view_proj * vec4(p, 1.0);
+        gl_FragDepth = (clip.w > 0.001) ? clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0) : 1.0;
+    } else {
+        gl_FragDepth = 1.0;
+    }
 }

@@ -1,6 +1,7 @@
 #include "graphics/renderer.hpp"
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 #include <iostream>
 #include <iomanip>
 
@@ -22,6 +23,7 @@ Renderer::Renderer(const WindowConfig& config)
 }
 
 Renderer::~Renderer() {
+    if (waterfall_texture_) glDeleteTextures(1, &waterfall_texture_);
     if (raymarching_ubo_) glDeleteBuffers(1, &raymarching_ubo_);
     if (quad_vao_) glDeleteVertexArrays(1, &quad_vao_);
     if (quad_vbo_) glDeleteBuffers(1, &quad_vbo_);
@@ -64,11 +66,37 @@ bool Renderer::init() {
     glBufferData(GL_UNIFORM_BUFFER, sizeof(RaymarchingUboData), nullptr, GL_DYNAMIC_DRAW);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
+    // 4.5. Initialize 2D Waterfall Energy Matrix Texture (GL_R16F for raymarching terrain sculpting)
+    glGenTextures(1, &waterfall_texture_);
+    glBindTexture(GL_TEXTURE_2D, waterfall_texture_);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R16F, 
+                 static_cast<GLsizei>(core::WATERFALL_BANDS), 
+                 static_cast<GLsizei>(core::WATERFALL_FRAMES), 
+                 0, GL_RED, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
     // 5. Initialize 3D Laser Ribbon Oscilloscope
     if (!oscilloscope_.init()) {
         std::cerr << "[Renderer AUDIT][ERROR] Failed to initialize OscilloscopeRenderer.\n";
         return false;
     }
+
+    // 5.5. Awaken GPU Compute Particle System (1,048,576 particles)
+    if (!particle_system_.init()) {
+        std::cerr << "[Renderer AUDIT][ERROR] Failed to initialize ParticleSystem.\n";
+        return false;
+    }
+
+    // 5.6. Register Mouse Scroll Callback for Instant Sensitivity Tuning
+    context_.set_scroll_callback([this](double /*xoffset*/, double yoffset) {
+        if (ImGui::GetCurrentContext() && ImGui::GetIO().WantCaptureMouse) return;
+        tuners_.input_gain = std::clamp(tuners_.input_gain + static_cast<float>(yoffset) * 0.10f, 0.10f, 5.00f);
+        std::cout << "[Audio AGC] Input Gain Sensitivity: " << std::fixed << std::setprecision(2) << tuners_.input_gain << "x\n";
+    });
 
     // 6. Initialize ImGui Debug Overlay (F12)
     imgui_.init(context_.get_window());
@@ -198,12 +226,28 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
                   << " | FPS: " << context_.get_fps() << "\n" << std::flush;
     }
 
-    // 3. Render Continuous SDF Raymarching into HDR Scene Framebuffer
+    // 3. Upload Live 2D Waterfall Energy Matrix for Terrain Sculpting (GL_R16F)
+    static std::vector<float> s_wf_energy;
+    brain_.get_waterfall_analyzer().get_raw_energy_matrix(s_wf_energy);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, waterfall_texture_);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 
+                    static_cast<GLsizei>(core::WATERFALL_BANDS), 
+                    static_cast<GLsizei>(core::WATERFALL_FRAMES), 
+                    GL_RED, GL_FLOAT, s_wf_energy.data());
+
+    // 4. Render Continuous SDF Raymarching into HDR Scene Framebuffer
     scene_fbo_.resize(width, height);
     scene_fbo_.bind();
+    glViewport(0, 0, width, height);
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glDisable(GL_BLEND);
-    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
+    glDepthMask(GL_TRUE);
 
     RaymarchingUboData ubo_data{};
     ubo_data.resolution_time[0] = static_cast<float>(width);
@@ -246,11 +290,28 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     ubo_data.extra_physics[2] = semantic.is_silent ? 1.0f : 0.0f;
     ubo_data.extra_physics[3] = semantic.bpm;
 
+    ubo_data.color_primary[0] = semantic.color_primary.r;
+    ubo_data.color_primary[1] = semantic.color_primary.g;
+    ubo_data.color_primary[2] = semantic.color_primary.b;
+    ubo_data.color_primary[3] = 1.0f;
+
+    ubo_data.color_accent[0] = semantic.color_accent.r;
+    ubo_data.color_accent[1] = semantic.color_accent.g;
+    ubo_data.color_accent[2] = semantic.color_accent.b;
+    ubo_data.color_accent[3] = 1.0f;
+
+    ubo_data.color_zenith[0] = semantic.color_zenith.r;
+    ubo_data.color_zenith[1] = semantic.color_zenith.g;
+    ubo_data.color_zenith[2] = semantic.color_zenith.b;
+    ubo_data.color_zenith[3] = 1.0f;
+
     glBindBuffer(GL_UNIFORM_BUFFER, raymarching_ubo_);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(RaymarchingUboData), &ubo_data);
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     raymarching_shader_.bind();
+    raymarching_shader_.set_mat4("u_view_proj", view_proj);
+    raymarching_shader_.set_int("u_waterfall_energy", 2);
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, raymarching_ubo_);
 
     glBindVertexArray(quad_vao_);
@@ -259,16 +320,27 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
 
     raymarching_shader_.unbind();
 
-    // 4. Render 3D Laser Ribbon Oscilloscope Entity
+    // 5. Awaken GPU Particle System (1,048,576 GPU Compute Particles depth-tested against raymarched geometry)
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE); // Read-only depth test: particles occluded by tunnel walls without overwriting
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Additive luminous blending
 
+    particle_system_.update(dt, time, audio_state, semantic, cam_pos, laser_pos);
+    particle_system_.render(view_proj);
+
+    // 6. Render 3D Laser Ribbon Oscilloscope Entity
     oscilloscope_.update(audio_state.stream_a, laser_pos, cam_dir, cam_up);
-    oscilloscope_.render(view_proj, time, semantic.is_silent ? 0.05f : (semantic.emission_pulse * 0.4f), audio_state.stream_a.peak_amplitude);
+    oscilloscope_.render(view_proj, time, 
+                        semantic.is_silent ? 0.05f : (semantic.emission_pulse * 0.4f), 
+                        audio_state.stream_a.peak_amplitude,
+                        semantic.color_primary,
+                        semantic.color_accent);
 
+    glDisable(GL_DEPTH_TEST);
     scene_fbo_.unbind();
 
-    // 5. Optical Post-Processing (Dynamic Bloom & CA sensitivity multipliers + dynamic speed lines)
+    // 7. Optical Post-Processing (Dynamic Bloom, CA, Radial God Rays & dynamic speed lines)
     float dyn_bloom = tuners_.bloom_intensity * (0.50f + 0.70f * semantic.emission_pulse + (semantic.is_onset ? 0.40f : 0.0f));
     if (semantic.is_silent) dyn_bloom = tuners_.bloom_intensity * 0.30f;
 
@@ -283,7 +355,8 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     glDisable(GL_BLEND);
     postprocess_.render(scene_fbo_.get_texture(), width, height, 
                         dyn_bloom, dyn_ca, 
-                        semantic.surface_ripple, dyn_speed_lines, time);
+                        semantic.surface_ripple, dyn_speed_lines, time,
+                        semantic.melodic_mids, glm::vec2(0.5f, 0.52f));
 
     // 6. Debug HUD (ImGui) - Toggle via F12
     if (tuners_.show_hud) {

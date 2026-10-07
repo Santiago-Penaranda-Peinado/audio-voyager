@@ -235,6 +235,8 @@ int main(int argc, char** argv) {
     // 4. Main Simulation & Rendering Loop
     audio_voyager::core::PhysicsAudioState audio_state;
     while (!renderer.should_close() && g_keep_running.load(std::memory_order_relaxed)) {
+        audio_engine.set_input_gain(renderer.get_tuners().input_gain);
+        audio_engine.set_agc_enabled(renderer.get_tuners().agc_enabled);
         audio_engine.poll_state(audio_state);
         renderer.render_frame(audio_state);
     }

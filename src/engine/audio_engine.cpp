@@ -68,6 +68,9 @@ bool AudioEngine::poll_state(core::PhysicsAudioState& out_state) {
     if (stream_b_->get_latest_snapshot(b_snapshot)) {
         current_state_.stream_b = b_snapshot;
     }
+    if (capture_) {
+        current_state_.stream_b.dynamic_gain = capture_->get_dynamic_gain();
+    }
 
     current_state_.frame_index = ++frame_counter_;
 
@@ -77,6 +80,22 @@ bool AudioEngine::poll_state(core::PhysicsAudioState& out_state) {
     // 4. Return the latest state
     out_state = current_state_;
     return true;
+}
+
+void AudioEngine::set_input_gain(float gain) noexcept {
+    if (capture_) {
+        capture_->set_input_gain(gain);
+    }
+}
+
+void AudioEngine::set_agc_enabled(bool enabled) noexcept {
+    if (capture_) {
+        capture_->set_agc_enabled(enabled);
+    }
+}
+
+float AudioEngine::get_dynamic_gain() const noexcept {
+    return capture_ ? capture_->get_dynamic_gain() : 1.0f;
 }
 
 } // namespace audio_voyager::engine

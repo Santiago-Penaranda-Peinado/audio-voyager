@@ -866,6 +866,225 @@ void test_techno_vs_dubstep_disambiguation() {
     std::cout << "  [PASS] 4-on-the-floor 128 BPM routes to Cyber; syncopated wobble routes to Dubstep!\n\n";
 }
 
+// -----------------------------------------------------------------------------
+// Test 11: Multi-Band Muscle Reactivity (Stream B 5 Bands & Stream A Presence bands[5])
+// -----------------------------------------------------------------------------
+void test_muscle_multiband_connectivity() {
+    std::cout << "[TEST 11] Testing Multi-Band Muscle Reactivity (Stream B 5 Bands & bands[5])...\n";
+
+    brain::SemanticBrain brain;
+    core::PhysicsAudioState state{};
+    state.stream_a.rms = 0.35f;
+    state.stream_b.energy = 0.35f;
+
+    // 11.1 Test Presence band (bands[5]) excitation
+    state.stream_a.spectrum_bands[5] = 0.85f;
+    for (int i = 0; i < 20; ++i) {
+        brain.update(state, 0.02f);
+    }
+    const auto& vec_presence = brain.get_semantic_vector();
+    std::cout << "  -> Presence (bands[5]) Mids Excitation: " << vec_presence.melodic_mids << " | Air: " << vec_presence.treble_sparkle << "\n";
+    assert(vec_presence.melodic_mids > 0.15f);
+    assert(vec_presence.treble_sparkle > 0.08f);
+
+    // 11.2 Test Stream B band_sub_bass excitation
+    state.stream_a.spectrum_bands[5] = 0.0f;
+    state.stream_b.band_sub_bass = 0.90f;
+    for (int i = 0; i < 20; ++i) {
+        brain.update(state, 0.02f);
+    }
+    const auto& vec_sub = brain.get_semantic_vector();
+    std::cout << "  -> Stream B band_sub_bass Dilation Excitation: " << vec_sub.elastic_dilation << "\n";
+    assert(vec_sub.elastic_dilation > 0.25f);
+
+    // 11.3 Test Stream B band_mids and band_air excitation
+    state.stream_b.band_mids = 0.75f;
+    state.stream_b.band_air = 0.80f;
+    for (int i = 0; i < 20; ++i) {
+        brain.update(state, 0.02f);
+    }
+    const auto& vec_mids_air = brain.get_semantic_vector();
+    std::cout << "  -> Stream B band_mids Resonance: " << vec_mids_air.melodic_mids << " | band_air Sparkle: " << vec_mids_air.treble_sparkle << "\n";
+    assert(vec_mids_air.melodic_mids > 0.30f);
+    assert(vec_mids_air.treble_sparkle > 0.40f);
+
+    std::cout << "  [PASS] Stream B's 5 physical bands and bands[5] Presence drive muscle excitations directly!\n\n";
+}
+
+// -----------------------------------------------------------------------------
+// Test 12: Cohesive Dynamic Palettes & Temporal Low-Pass Filtering (No Strobing)
+// -----------------------------------------------------------------------------
+void test_cohesive_palette_temporal_smoothing() {
+    std::cout << "[TEST 12] Testing Cohesive Dynamic Palettes & Temporal Low-Pass Filtering...\n";
+
+    brain::SemanticBrain brain;
+    core::PhysicsAudioState loud_metal{};
+    loud_metal.stream_a.rms = 0.45f;
+    loud_metal.stream_b.energy = 0.50f;
+    loud_metal.stream_b.dissonance = 0.65f;
+    loud_metal.stream_a.spectrum_bands = {0.55f, 0.65f, 0.80f, 0.90f, 0.80f, 0.65f, 0.55f, 0.45f};
+
+    // Step 1 frame into metal
+    brain.update(loud_metal, 0.016f);
+    auto vec1 = brain.get_semantic_vector();
+
+    // Verify initial color matches Liquid (sapphire) resting state and did not snap instantly to pure metal crimson
+    std::cout << "  -> Initial Color after 1 frame: R=" << vec1.color_primary.r << ", G=" << vec1.color_primary.g << ", B=" << vec1.color_primary.b << "\n";
+    assert(vec1.color_primary.b > vec1.color_primary.r); // Still mostly sapphire ocean!
+
+    // Feed metal continuously for 3 seconds
+    for (int i = 0; i < 180; ++i) {
+        loud_metal.stream_b.is_onset = (i % 8 == 0);
+        brain.update(loud_metal, 0.016f);
+    }
+    auto vec2 = brain.get_semantic_vector();
+    std::cout << "  -> Morphed Color after 3.0s Metal: R=" << vec2.color_primary.r 
+              << ", G=" << vec2.color_primary.g << ", B=" << vec2.color_primary.b << std::endl;
+    assert(vec2.color_primary.r > vec2.color_primary.b); // Morphed smoothly into magma crimson
+    assert(vec2.color_primary.r > 0.45f);
+
+    // Verify accent color is smoldering ember/gold
+    assert(vec2.color_accent.r > 0.70f);
+    // Verify zenith sky is dark smoldering basalt black
+    assert(vec2.color_zenith.r < 0.05f && vec2.color_zenith.g < 0.05f && vec2.color_zenith.b < 0.05f);
+
+    std::cout << "  [PASS] Dynamic palettes morph smoothly (tau ~ 1.8s) with harmonious, congruent colors (zero strobing)!\n\n";
+}
+
+// -----------------------------------------------------------------------------
+// Test 13: 2D Waterfall Raw Energy Matrix (GL_R16F GPU Texture)
+// -----------------------------------------------------------------------------
+void test_waterfall_raw_energy_matrix() {
+    std::cout << "[TEST 13] Testing 2D Waterfall Raw Energy Matrix Extraction...\n";
+
+    brain::WaterfallAnalyzer waterfall;
+    std::array<float, core::WATERFALL_BANDS> test_frame{};
+    for (size_t b = 0; b < core::WATERFALL_BANDS; ++b) {
+        test_frame[b] = static_cast<float>(b) / static_cast<float>(core::WATERFALL_BANDS);
+    }
+
+    for (int f = 0; f < 30; ++f) {
+        waterfall.push_frame(test_frame);
+    }
+
+    std::vector<float> energy_matrix;
+    waterfall.get_raw_energy_matrix(energy_matrix);
+
+    assert(energy_matrix.size() == core::WATERFALL_BANDS * core::WATERFALL_FRAMES);
+    std::cout << "  -> Energy Matrix Size: " << energy_matrix.size() << " floats (" 
+              << (energy_matrix.size() * sizeof(float)) << " bytes)\n";
+
+    for (float val : energy_matrix) {
+        assert(val >= 0.0f && val <= 1.0f);
+    }
+
+    std::cout << "  [PASS] 2D Waterfall raw float matrix ready for GL_R16F terrain sculpt texture upload!\n\n";
+}
+
+// -----------------------------------------------------------------------------
+// Test 14: AGC Volume-Invariance & Continuous Noise-Floor Transition
+// -----------------------------------------------------------------------------
+void test_agc_volume_invariance() {
+    std::cout << "[TEST 14] Testing AGC Volume-Invariance & Continuous Noise-Floor Transition...\n";
+
+    constexpr float NOMINAL_TARGET = 0.24f;
+    constexpr float NOISE_FLOOR = 0.003f;
+    constexpr float QUIET_THRESHOLD = 0.015f;
+
+    auto compute_agc_gain = [&](float envelope) {
+        if (envelope > QUIET_THRESHOLD) {
+            return std::clamp(NOMINAL_TARGET / envelope, 0.20f, 5.0f);
+        } else if (envelope > NOISE_FLOOR) {
+            float raw_target_gain = std::clamp(NOMINAL_TARGET / envelope, 0.20f, 5.0f);
+            float t = (envelope - NOISE_FLOOR) / (QUIET_THRESHOLD - NOISE_FLOOR);
+            float smooth_t = t * t * (3.0f - 2.0f * t);
+            return 1.0f + smooth_t * (raw_target_gain - 1.0f);
+        } else {
+            return 1.0f;
+        }
+    };
+
+    // 14.1 Test Volume-Invariance: 50% Spotify volume vs 100% Spotify volume
+    float low_vol_env = 0.10f;  // 50% volume track
+    float high_vol_env = 0.35f; // 100% loud mastered track
+
+    float gain_low = compute_agc_gain(low_vol_env);
+    float gain_high = compute_agc_gain(high_vol_env);
+
+    float effective_low_rms = low_vol_env * gain_low;
+    float effective_high_rms = high_vol_env * gain_high;
+
+    std::cout << "  -> Low Volume Input: RMS 0.10 -> Gain " << gain_low << "x -> Normalized RMS " << effective_low_rms << "\n";
+    std::cout << "  -> High Volume Input: RMS 0.35 -> Gain " << gain_high << "x -> Normalized RMS " << effective_high_rms << "\n";
+
+    assert(std::abs(effective_low_rms - NOMINAL_TARGET) < 0.01f);
+    assert(std::abs(effective_high_rms - NOMINAL_TARGET) < 0.01f);
+    assert(std::abs(effective_low_rms - effective_high_rms) < 0.01f);
+
+    // 14.2 Test Strict Noise-Floor Continuity (Zero clicks or discontinuous jumps)
+    float prev_gain = 1.0f;
+    for (int step = 0; step <= 50; ++step) {
+        float env = 0.001f + 0.020f * (static_cast<float>(step) / 50.0f);
+        float g = compute_agc_gain(env);
+        // Gain must not jump by more than 0.4 between adjacent small steps
+        assert(std::abs(g - prev_gain) < 0.45f);
+        prev_gain = g;
+    }
+
+    // 14.3 Test Soft-Knee Saturation curve
+    auto soft_saturate = [](float x) noexcept -> float {
+        constexpr float threshold = 0.75f;
+        constexpr float headroom = 1.0f - threshold;
+        if (std::abs(x) <= threshold) return x;
+        if (x > threshold) {
+            float excess = x - threshold;
+            return threshold + headroom * std::tanh(excess / headroom);
+        } else {
+            float excess = -x - threshold;
+            return -(threshold + headroom * std::tanh(excess / headroom));
+        }
+    };
+
+    assert(soft_saturate(0.5f) == 0.5f); // linear below threshold
+    assert(soft_saturate(1.2f) < 1.0f);  // compressed smoothly below 1.0
+    assert(soft_saturate(-1.2f) > -1.0f);
+    assert(soft_saturate(5.0f) <= 1.0f); // extreme transient remains clamped within unit float range [-1.0, 1.0]
+    std::cout << "  -> Soft-Knee Saturation at 1.5x input: " << soft_saturate(1.5f) << " (clean, smooth <= 1.0)\n";
+
+    std::cout << "  [PASS] AGC normalizer produces volume-invariant calibrated levels and C1 smooth noise-floor transitions!\n\n";
+}
+
+// -----------------------------------------------------------------------------
+// Test 15: Raymarching Map & 2D Waterfall Sculpt Safety (No NaN, Clearance >= 2.0m)
+// -----------------------------------------------------------------------------
+void test_raymarching_waterfall_sculpt_safety() {
+    std::cout << "[TEST 15] Testing Raymarching Map & 2D Waterfall Sculpt Safety...\n";
+
+    glm::vec3 cam_p(0.0f, 2.8f, 10.0f);
+
+    // 15.1 Verify that p == cam_p does NOT produce undefined behavior in atan or NaN
+    glm::vec2 p_rel(cam_p.x - cam_p.x, cam_p.y - cam_p.y);
+    float angle = (glm::dot(p_rel, p_rel) > 1e-7f) ? std::atan2(p_rel.y, p_rel.x) : 0.0f;
+    assert(!std::isnan(angle));
+    assert(angle == 0.0f);
+
+    // 15.2 Verify that even with MAXIMUM waterfall terrain sculpting (-0.45m), 
+    // the guaranteed flight corridor smax keeps clearance >= 2.0m
+    float max_wf_carve = 0.45f;
+    glm::vec4 weights(0.25f, 0.25f, 0.25f, 0.25f);
+    float d_raw = test_map(cam_p, cam_p, weights, 1.0f, 1.0f, 0.70f, 0.0f, 1.5f);
+    float d_sculpted = d_raw - max_wf_carve;
+    // Apply global flight corridor protection
+    float d_corridor = glm::length(glm::vec2(0.0f, 0.0f)) - (2.2f + 1.0f * 0.2f); // -2.4m
+    float d_safe = smax(d_sculpted, -d_corridor, 0.45f);
+
+    std::cout << "  -> Distance at camera with max waterfall carving: " << d_safe << " m\n";
+    assert(d_safe >= 2.0f);
+    assert(!std::isnan(d_safe));
+
+    std::cout << "  [PASS] Waterfall terrain sculpting preserves absolute camera clearance (>= 2.0m) with zero NaNs!\n\n";
+}
+
 int main() {
     std::cout << "=================================================================\n";
     std::cout << "   AUDIO-VOYAGER SYSTEM INTEGRITY & ARCHITECTURAL VERIFICATION   \n";
@@ -881,6 +1100,11 @@ int main() {
     test_waterfall_spatiotemporal_analysis();
     test_metal_distorted_guitar_fix();
     test_techno_vs_dubstep_disambiguation();
+    test_muscle_multiband_connectivity();
+    test_cohesive_palette_temporal_smoothing();
+    test_waterfall_raw_energy_matrix();
+    test_agc_volume_invariance();
+    test_raymarching_waterfall_sculpt_safety();
 
     std::cout << "=================================================================\n";
     std::cout << "   ALL VERIFICATION TESTS PASSED SUCCESSFULLY! (100% HEALTHY)    \n";

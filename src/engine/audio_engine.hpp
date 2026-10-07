@@ -42,6 +42,11 @@ public:
      */
     bool poll_state(core::PhysicsAudioState& out_state);
 
+    // Audio Normalization & Gain Sensitivity Controls
+    void set_input_gain(float gain) noexcept;
+    void set_agc_enabled(bool enabled) noexcept;
+    [[nodiscard]] float get_dynamic_gain() const noexcept;
+
 private:
     audio::AudioCaptureConfig config_;
 

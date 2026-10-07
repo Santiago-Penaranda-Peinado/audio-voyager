@@ -23,6 +23,9 @@ struct alignas(16) RaymarchingUboData {
     float physical_params[4];   // x: elastic_dilation, y: surface_ripple, z: emission_pulse, w: norm_centroid
     float laser_pos[4];         // xyz: laser light pos, w: arousal
     float extra_physics[4];     // x: melodic_mids, y: treble_sparkle, z: is_silent, w: bpm
+    float color_primary[4];     // rgb: smoothed primary color, w: spare
+    float color_accent[4];      // rgb: smoothed accent color, w: spare
+    float color_zenith[4];      // rgb: smoothed zenith sky color, w: spare
 };
 
 class Renderer {
@@ -56,6 +59,7 @@ private:
     Framebuffer scene_fbo_;
     Shader raymarching_shader_;
     uint32_t raymarching_ubo_{0};
+    uint32_t waterfall_texture_{0};
     uint32_t quad_vao_{0};
     uint32_t quad_vbo_{0};
 
