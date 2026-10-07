@@ -31,11 +31,11 @@ void main() {
     float size_mult = u_color_base.w;
     float opacity_mult = u_color_peak.w;
 
-    // Elegant, delicate pin-sharp stardust sizing (1.2 to 2.8 pixels, never giant blobs!)
-    float dist_w = max(gl_Position.w, 1.0);
-    float base_size = (18.0 / pow(dist_w, 0.70)) * size_mult;
-    float audio_size_boost = 1.0 + u_audio_energy.x * 0.35 + treble_sparkle * 0.45;
-    gl_PointSize = clamp(base_size * audio_size_boost, 1.2, 2.8);
+    // Incandescent needle-sharp spark & filament sizing
+    float dist_w = max(gl_Position.w, 0.5);
+    float base_size = (36.0 / pow(dist_w, 0.58)) * size_mult;
+    float audio_size_boost = 1.0 + u_audio_energy.x * 0.45 + treble_sparkle * 0.55;
+    gl_PointSize = clamp(base_size * audio_size_boost, 2.0, 24.0);
 
     // Procedural Color Blending (Harmonized Biome Base to Peak)
     float spec_centroid = u_audio_physics.x;
@@ -43,8 +43,8 @@ void main() {
     float onset = u_audio_physics.z;
 
     float energy_factor = clamp(
-        speed * 0.12 + 
-        onset * 0.40 + 
+        speed * 0.08 + 
+        onset * 0.45 + 
         dissonance * 0.25 + 
         treble_sparkle * 0.45 +
         max(0.0, (spec_centroid - 0.35) * 0.5), 
@@ -53,13 +53,14 @@ void main() {
 
     vec3 final_color = mix(u_color_base.rgb, u_color_peak.rgb, energy_factor);
 
-    // High frequency stardust twinkle
-    final_color += vec3(treble_sparkle * 0.50);
+    // Incandescent thermal flash on fast friction sparks
+    final_color += vec3(0.20, 0.16, 0.10) * clamp(speed * 0.04 + onset * 0.6, 0.0, 1.0);
+    final_color += vec3(treble_sparkle * 0.40);
 
     // Near-plane fadeout: smooth fade as particle approaches camera near plane to prevent clipping/blinding
-    float near_fade = smoothstep(1.5, 4.2, dist_w);
+    float near_fade = smoothstep(0.4, 1.8, dist_w);
 
-    // Delicate translucent alpha (never blinding whiteout)
-    float alpha = clamp(life * 0.50 * (0.30 + u_audio_energy.x * 0.50) * opacity_mult * near_fade, 0.0, 0.65);
+    // Translucent alpha calibrated to avoid whiteout
+    float alpha = clamp(life * 0.70 * (0.35 + u_audio_energy.x * 0.45) * opacity_mult * near_fade, 0.0, 0.85);
     v_color = vec4(final_color, alpha);
 }

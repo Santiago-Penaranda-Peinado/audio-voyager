@@ -22,7 +22,8 @@ public:
     void render(uint32_t scene_hdr_tex, int width, int height, 
                 float bloom_intensity, float chromatic_aberration, 
                 float glitch_amount, float speed_lines, float time,
-                float melodic_mids = 0.0f, glm::vec2 sun_pos = glm::vec2(0.5f, 0.52f));
+                float melodic_mids = 0.0f, glm::vec2 sun_pos = glm::vec2(0.5f, 0.52f),
+                float drop_flash = 0.0f);
 
 private:
     void init_screen_quad();

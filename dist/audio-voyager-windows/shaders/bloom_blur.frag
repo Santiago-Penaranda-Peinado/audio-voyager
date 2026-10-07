@@ -13,7 +13,7 @@ const float weights[5] = float[](0.227027, 0.1945946, 0.1216216, 0.054054, 0.016
 vec3 extract_bright(vec3 col) {
     float luma = max(col.r, max(col.g, col.b));
     float thresh = max(u_bloom_threshold, 0.1);
-    float knee = 0.35;
+    float knee = 0.12; // Crisp cutoff so standard terrain surfaces do NOT bleed into bloom
     float soft = clamp(luma - thresh + knee, 0.0, 2.0 * knee);
     soft = (soft * soft) / (4.0 * knee + 1e-4);
     float factor = max(soft, luma - thresh) / max(luma, 1e-4);

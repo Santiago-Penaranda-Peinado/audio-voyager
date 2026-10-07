@@ -99,6 +99,7 @@ struct AudioSemanticVector {
     float camera_roll{0.0f};       // Camera bank / roll angle (radians)
     float bpm{120.0f};             // Detected Tempo
     float bpm_confidence{0.5f};    // Tempo Confidence (decays to 0 on silence)
+    float gear_shift_pulse{0.0f};  // Dynamic kinetic gear shift impulse on sudden rhythm/tempo transitions [0.0 - 1.2]
 
     // 4. 2D Waterfall Spatiotemporal Pattern Insights
     float waterfall_guitar_continuity{0.0f}; // Horizontal continuity in guitar mids [0, 1]

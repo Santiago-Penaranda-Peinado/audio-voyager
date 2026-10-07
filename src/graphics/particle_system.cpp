@@ -167,7 +167,7 @@ void ParticleSystem::update(float dt, float total_time,
     ubo_data.cam_dir[0] = cam_dir.x;
     ubo_data.cam_dir[1] = cam_dir.y;
     ubo_data.cam_dir[2] = cam_dir.z;
-    ubo_data.cam_dir[3] = 0.0f;
+    ubo_data.cam_dir[3] = semantic.speed_forward;
 
     glBindBuffer(GL_UNIFORM_BUFFER, ubo_);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(AudioPhysicsUbo), &ubo_data);

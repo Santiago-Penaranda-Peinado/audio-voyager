@@ -353,8 +353,9 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     scene_fbo_.unbind();
 
     // 7. Optical Post-Processing (Dynamic Bloom, CA, Radial God Rays & dynamic speed lines)
-    float dyn_bloom = tuners_.bloom_intensity * (0.50f + 0.70f * semantic.emission_pulse + (semantic.is_onset ? 0.40f : 0.0f));
-    if (semantic.is_silent) dyn_bloom = tuners_.bloom_intensity * 0.30f;
+    float dyn_bloom = tuners_.bloom_intensity * (0.35f + 0.40f * semantic.emission_pulse + (semantic.is_onset ? 0.25f : 0.0f));
+    dyn_bloom = std::clamp(dyn_bloom, 0.0f, 0.60f);
+    if (semantic.is_silent) dyn_bloom = tuners_.bloom_intensity * 0.15f;
 
     float dyn_ca = tuners_.chromatic_aberration * (0.40f + 1.10f * semantic.surface_ripple + 0.50f * semantic.arousal);
     if (semantic.is_silent) dyn_ca = tuners_.chromatic_aberration * 0.20f;
@@ -364,11 +365,19 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     dyn_speed_lines = std::clamp(dyn_speed_lines, 0.0f, 1.0f) * tuners_.speed_multiplier;
     if (semantic.is_silent) dyn_speed_lines = 0.0f;
 
+    // Dynamic drop flash & contrast pop on sudden rhythm/tempo shifts or heavy kick drops
+    if (semantic.gear_shift_pulse > 0.22f || (semantic.is_onset && semantic.emission_pulse > 1.30f)) {
+        drop_flash_ = std::min(drop_flash_ + 0.45f * std::max(semantic.gear_shift_pulse, 0.60f), 0.70f);
+    }
+    drop_flash_ *= std::exp(-14.0f * dt);
+    if (semantic.is_silent) drop_flash_ = 0.0f;
+
     glDisable(GL_BLEND);
     postprocess_.render(scene_fbo_.get_texture(), width, height, 
                         dyn_bloom, dyn_ca, 
                         semantic.surface_ripple, dyn_speed_lines, time,
-                        semantic.melodic_mids, glm::vec2(0.5f, 0.52f));
+                        semantic.melodic_mids, glm::vec2(0.5f, 0.52f),
+                        drop_flash_);
 
     // 6. Debug HUD (ImGui) - Toggle via F12
     if (tuners_.show_hud) {

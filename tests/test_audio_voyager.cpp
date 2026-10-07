@@ -401,7 +401,18 @@ void test_dynamic_kinematics_and_speed() {
     assert(drop_speed >= 25.0f && drop_speed <= 45.0f);
     assert(drop_speed > calm_speed + 20.0f);
 
-    std::cout << "  [PASS] Speed range is highly dynamic (" << calm_speed << " -> " << drop_speed << " m/s)!\n\n";
+    // 3.3 Fast Transient Rhythm / Gear Shift Detection:
+    // Sudden energy surge triggers gear_shift_pulse > 0.40f
+    core::PhysicsAudioState surge_state = state;
+    surge_state.stream_a.rms = 0.85f;
+    surge_state.stream_b.energy = 0.90f;
+    surge_state.stream_b.is_onset = true;
+    brain.update(surge_state, 0.02f);
+    float surge_pulse = brain.get_semantic_vector().gear_shift_pulse;
+    std::cout << "  -> Gear Shift Impulse on Sudden Drop: " << surge_pulse << "\n";
+    assert(surge_pulse > 0.40f);
+
+    std::cout << "  [PASS] Speed range is highly dynamic (" << calm_speed << " -> " << drop_speed << " m/s) and gear-shift responds instantly!\n\n";
 }
 
 // -----------------------------------------------------------------------------
@@ -435,7 +446,26 @@ void test_camera_flight_clearance_and_roll() {
     }
     assert(observed_banking);
     assert(observed_trauma);
-    std::cout << "  -> Verified camera clearance (Y >= 2.0m), 6DoF banking into turns, and visceral trauma shake.\n";
+
+    // 4.2 Elastic FOV Punch verification on gear-shift drops
+    float base_fov = director.get_fov_radians();
+    semantic.gear_shift_pulse = 0.80f;
+    semantic.is_onset = true;
+    director.update(semantic, 0.02f);
+    float punched_fov = director.get_fov_radians();
+    assert(punched_fov > base_fov);
+
+    // Recoil recovery
+    semantic.gear_shift_pulse = 0.0f;
+    semantic.is_onset = false;
+    for (int i = 0; i < 30; ++i) {
+        director.update(semantic, 0.02f);
+    }
+    float recoiled_fov = director.get_fov_radians();
+    assert(recoiled_fov < punched_fov);
+
+    std::cout << "  -> Verified camera clearance (Y >= 2.0m), 6DoF banking into turns, visceral trauma shake, and elastic FOV punch (" 
+              << glm::degrees(base_fov) << " deg -> " << glm::degrees(punched_fov) << " deg -> " << glm::degrees(recoiled_fov) << " deg).\n";
     std::cout << "  [PASS] Camera kinematics & 6DoF banking operating smoothly!\n\n";
 }
 

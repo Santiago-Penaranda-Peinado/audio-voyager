@@ -52,6 +52,11 @@ private:
     float smooth_centroid_{0.5f};
     float smooth_speed_{1.3f};
 
+    // Fast transient rhythm and tempo gear-shift reactivity
+    float prev_energy_{0.0f};
+    float prev_flux_{0.0f};
+    float gear_shift_impulse_{0.0f};
+
     // Continuous Temporal Low-Pass Filtering for Cohesive Biome Colors (tau ~ 1.8s)
     glm::vec3 smooth_color_primary_{0.08f, 0.42f, 0.88f};
     glm::vec3 smooth_color_accent_{1.00f, 0.72f, 0.22f};

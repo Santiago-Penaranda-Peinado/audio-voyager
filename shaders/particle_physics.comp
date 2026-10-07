@@ -143,96 +143,101 @@ void main() {
     float shock_mult = u_physics_scales.z;
     float attr_mult = u_physics_scales.w;
     float base_damping = u_sim_params.w;
+    float speed_fwd = max(u_cam_dir.w, 4.0);
 
-    // Archetype partition: 70% slipstream wake embers, 30% ambient tunnel stardust
-    bool is_wake = (id % 10u < 7u);
+    // Orthonormal camera frame
+    vec3 fwd = cam_dir;
+    vec3 up_hint = vec3(0.0, 1.0, 0.0);
+    vec3 right = normalize(cross(fwd, up_hint));
+    vec3 up = cross(right, fwd);
+
+    // Archetype partition: 75% Supersonic Road Friction Sparks, 25% Hyperspace Velocity Streaks
+    bool is_spark = (id % 4u < 3u);
 
     vec3 total_acc = vec3(0.0);
 
-    if (is_wake) {
-        // --- 1. Slipstream Wake Embers (Aerodynamic ribbon spiral) ---
-        vec3 to_laser = pos - laser_pos;
-        float d_laser = length(to_laser);
+    if (is_spark) {
+        // --- 1. Supersonic Road Friction Sparks (Chispas F1 / Bottoming Embers) ---
+        // Gravity pulling sparks back down towards the asphalt
+        total_acc += -up * (20.0 * grav_mult);
 
-        // Gentle centripetal spring toward the laser ribbon axis
-        vec3 laser_attract = -to_laser * (1.2 + sub_bass * attr_mult * 1.5);
+        // Ground turbulence and airflow drag along the floor
+        vec3 noise_pos = (pos - cam_pos) * 0.12 + vec3(time * 0.10);
+        total_acc += computeCurl(noise_pos) * (vort_mult * 0.45);
 
-        // Smooth helical swirl around the forward flight axis
-        vec3 tangent = cross(normalize(to_laser + vec3(0.001)), cam_dir);
-        vec3 swirl_force = tangent * (0.8 + dissonance * 1.2 + treble * 1.4);
-
-        // Subtle curl noise turbulence for natural flow
-        vec3 noise_pos = (pos - cam_pos) * 0.08 + vec3(time * 0.05);
-        vec3 curl = computeCurl(noise_pos) * (vort_mult * 0.35);
-
-        // Kinetic burst on drum kick
-        vec3 shock_force = vec3(0.0);
+        // Explosive kinetic burst on drum kicks
         if (is_onset > 0.5 || onset > 0.35) {
-            shock_force = normalize(to_laser + vec3(0.001)) * (onset * shock_mult * 2.2);
-            life = 1.0;
+            total_acc += right * ((hash(id + uint(time * 60.0)) - 0.5) * 8.0) + up * (7.0 * onset) - fwd * (12.0 * onset);
         }
-
-        total_acc = laser_attract + swirl_force + curl + shock_force;
     } else {
-        // --- 2. Ambient Tunnel Stardust (Constellations floating along walls) ---
-        // Buoyant upward drift modulated by spectral centroid
-        vec3 buoyancy = vec3(0.0, (spec_centroid - 0.45) * grav_mult * 0.6, 0.0);
-
-        // Gentle acoustic breathing pulsation (expanding on bass drops)
-        vec2 radial_xy = pos.xy - cam_pos.xy;
-        float r_len = length(radial_xy);
-        vec3 radial_pulse = vec3(normalize(radial_xy + vec2(0.001)) * (sub_bass * 1.5 - 0.2), 0.0);
-
-        // Soft ambient curl drift
-        vec3 noise_pos = (pos - cam_pos) * 0.06 + vec3(0.0, time * 0.04, time * 0.02);
-        vec3 curl = computeCurl(noise_pos) * (vort_mult * 0.25);
-
-        // Onset acoustic ripple
-        vec3 shock_force = vec3(0.0);
-        if (is_onset > 0.5) {
-            shock_force = vec3(normalize(radial_xy + vec2(0.001)), 0.0) * (onset * shock_mult * 1.8);
-        }
-
-        total_acc = buoyancy + radial_pulse + curl + shock_force;
+        // --- 2. Hyperspace Velocity Streaks (Motion-blurred filaments along tunnel) ---
+        vec2 radial_xy = vec2(dot(pos - cam_pos, right), dot(pos - cam_pos, up));
+        vec3 radial_pulse = (right * radial_xy.x + up * radial_xy.y) * ((sub_bass * 1.6 - 0.2) / max(length(radial_xy), 0.1));
+        vec3 curl = computeCurl((pos - cam_pos) * 0.05 + vec3(0.0, time * 0.04, time * 0.02)) * (vort_mult * 0.20);
+        total_acc = radial_pulse + curl;
     }
 
     // Velocity integration with dynamic damping
-    float dynamic_damping = base_damping - (1.0 - rms) * 0.015;
+    float dynamic_damping = is_spark ? 0.975 : base_damping;
     vel += total_acc * (dt / max(mass, 0.2));
     vel *= dynamic_damping;
     pos += vel * dt;
 
-    // Graceful life decay
-    life -= dt * (0.10 + rms * 0.12);
+    // Road floor collision & elastic ricochet for friction sparks
+    float road_y = cam_pos.y - 2.45;
+    if (is_spark && pos.y < road_y) {
+        pos.y = road_y;
+        vel.y = abs(vel.y) * 0.45; // Elastic bounce off the road surface
+        vel += right * ((hash(id + uint(time * 120.0)) - 0.5) * 2.5); // Lateral scatter
+    }
 
-    // Camera-centric forward respawn: ALWAYS respawn well ahead of camera, never in player's face!
-    if (life <= 0.0 || forward_proj < -1.5 || dist_to_cam > 48.0 || isnan(pos.x)) {
-        float seed = float(id) * 1.6180339 + time * 60.0;
-        float theta = hash(uint(seed)) * 6.2831853;
-        float forward_offset = 6.0 + hash(uint(seed + 1.0)) * 36.0;
+    // Fast, incandescent burning life decay (sparks burn hot and fast!)
+    life -= dt * (is_spark ? (1.10 + rms * 1.30) : (0.22 + rms * 0.28));
 
-        vec3 center_ahead = cam_pos + cam_dir * forward_offset;
+    // Camera-centric forward respawn: 100% active in front of camera
+    bool out_of_bounds = (dist_to_cam > 55.0 || forward_proj < 0.3 || isnan(pos.x));
+    if (life <= 0.0 || out_of_bounds) {
+        float seed = float(id) * 1.6180339 + time * 85.0;
 
-        // Camera-aligned orthonormal basis
-        vec3 fwd = cam_dir;
-        vec3 up_hint = vec3(0.0, 1.0, 0.0);
-        vec3 right = normalize(cross(fwd, up_hint));
-        vec3 up = cross(right, fwd);
+        if (is_spark) {
+            // Spawn ahead on the road floor and side guide rails
+            float forward_offset = 3.5 + hash(uint(seed)) * 22.0;
+            float side_choice = hash(uint(seed + 1.0));
+            float x_lateral = 0.0;
+            if (side_choice < 0.42) {
+                // Center road contact / bottoming skidplate sparks
+                x_lateral = (hash(uint(seed + 2.0)) - 0.5) * 1.5;
+            } else {
+                // Side curb / rail scraping sparks
+                float side = (hash(uint(seed + 3.0)) > 0.5) ? 1.0 : -1.0;
+                x_lateral = side * (1.7 + hash(uint(seed + 4.0)) * 0.8);
+            }
 
-        if (is_wake) {
-            // Wake particles spawn around the laser path
-            float r = 0.3 + hash(uint(seed + 2.0)) * 1.5;
-            pos = center_ahead + right * (r * cos(theta)) + up * (r * sin(theta) * 0.7);
-            vel = cam_dir * (1.2 + sub_bass * 2.0) + (-right * sin(theta) + up * cos(theta)) * 0.6;
+            pos = cam_pos + fwd * forward_offset + right * x_lateral;
+            pos.y = cam_pos.y - 2.40 + hash(uint(seed + 5.0)) * 0.15;
+
+            // Violent rearward stream velocity towards and past the cockpit
+            float stream_back = speed_fwd * 0.80 + 7.0 + sub_bass * 12.0;
+            float kick_up = 1.6 + hash(uint(seed + 6.0)) * 3.6 + (is_onset > 0.5 ? 3.5 : 0.0);
+            float scatter_x = (hash(uint(seed + 7.0)) - 0.5) * (3.0 + onset * 4.5);
+
+            vel = -fwd * stream_back + up * kick_up + right * scatter_x;
+            life = 0.55 + hash(uint(seed + 8.0)) * 0.50;
+            mass = 0.4 + hash(uint(seed + 9.0)) * 0.5;
         } else {
-            // Ambient motes spawn along the tunnel/canyon boundary
-            float r = 2.4 + hash(uint(seed + 2.0)) * 1.8;
-            pos = center_ahead + right * (r * cos(theta)) + up * (r * sin(theta));
-            vel = (-right * sin(theta) * 0.3 + up * (cos(theta) * 0.2)) + cam_dir * 0.3;
-        }
+            // Hyperspace velocity filaments spawn ahead along tunnel perimeter
+            float forward_offset = 8.0 + hash(uint(seed + 1.0)) * 32.0;
+            vec3 center_ahead = cam_pos + fwd * forward_offset;
 
-        life = 0.7 + hash(uint(seed + 3.0)) * 0.5;
-        mass = 0.6 + hash(uint(seed + 4.0)) * 0.6;
+            float theta = hash(uint(seed + 2.0)) * 6.2831853;
+            float r = 2.2 + hash(uint(seed + 3.0)) * 1.8;
+            pos = center_ahead + right * (r * cos(theta)) + up * (r * sin(theta));
+
+            // Streaking past camera at flight velocity
+            vel = -fwd * (speed_fwd * 0.85 + 7.0) + (right * cos(theta) + up * sin(theta)) * 0.3;
+            life = 0.70 + hash(uint(seed + 4.0)) * 0.40;
+            mass = 0.5 + hash(uint(seed + 5.0)) * 0.5;
+        }
     }
 
     p.pos_life = vec4(pos, life);

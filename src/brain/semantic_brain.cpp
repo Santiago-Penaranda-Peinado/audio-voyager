@@ -171,7 +171,21 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     float raw_energy = std::max(audio_state.stream_b.energy, raw_rms);
     float raw_centroid_hz = audio_state.stream_b.spectral_centroid_hz;
 
+    // Detect sudden tempo / rhythm changes:
+    // 1. Spikes in energy/onset novelty
+    // 2. Sudden surge in bass temporal flux (e.g. wobble / breakdown drop)
+    // 3. Kick onset with significant energy
+    float energy_jump = raw_energy - prev_energy_;
+    float flux_jump = wf_metrics.bass_temporal_flux - prev_flux_;
+    if ((energy_jump > 0.18f || flux_jump > 0.22f || (audio_state.stream_b.is_onset && raw_energy > 0.28f)) && !is_silent) {
+        gear_shift_impulse_ = std::min(gear_shift_impulse_ + 0.85f, 1.2f);
+    }
+    gear_shift_impulse_ *= std::exp(-7.5f * dt);
+    prev_energy_ = raw_energy;
+    prev_flux_ = wf_metrics.bass_temporal_flux;
+
     if (is_silent) {
+        gear_shift_impulse_ = 0.0f;
         // Modo Reposo Zen en Silencio
         smooth_dilation_ += (1.0f - std::exp(-8.0f * dt)) * (0.0f - smooth_dilation_);
         smooth_ripple_   += (1.0f - std::exp(-20.0f * dt)) * (0.0f - smooth_ripple_);
@@ -198,7 +212,7 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
         smooth_air_ += (1.0f - std::exp(-35.0f * dt)) * (target_air - smooth_air_);
 
         // 2.5 Pulso de Emisión Volumétrica & HDR Glow
-        float target_emission = 0.7f + raw_energy * 1.5f + (audio_state.stream_b.is_onset ? 0.5f : 0.0f);
+        float target_emission = 0.7f + raw_energy * 1.5f + (audio_state.stream_b.is_onset ? 0.5f : 0.0f) + gear_shift_impulse_ * 0.35f;
         smooth_emission_ += (1.0f - std::exp(-18.0f * dt)) * (target_emission - smooth_emission_);
 
         // 2.6 Tono HSV Guiado por Centroide
@@ -219,8 +233,15 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
         if (vector_.is_onset && raw_energy > 0.35f) {
             target_speed += 10.0f * (vector_.weight_dubstep + vector_.weight_metal + 0.3f);
         }
+        // Instantaneous gear-shift kinetic boost on sudden tempo / rhythm drop
+        if (gear_shift_impulse_ > 0.15f) {
+            target_speed += gear_shift_impulse_ * 12.0f;
+        }
         target_speed = std::clamp(target_speed, 2.5f, 45.0f);
-        smooth_speed_ += (1.0f - std::exp(-6.0f * dt)) * (target_speed - smooth_speed_);
+
+        // Dynamic speed adaptation rate: snaps quickly during gear shift transitions
+        float speed_rate = (gear_shift_impulse_ > 0.20f) ? 22.0f : 6.0f;
+        smooth_speed_ += (1.0f - std::exp(-speed_rate * dt)) * (target_speed - smooth_speed_);
     }
 
     vector_.elastic_dilation = smooth_dilation_;
@@ -230,6 +251,7 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     vector_.emission_pulse   = smooth_emission_;
     vector_.norm_centroid    = smooth_centroid_;
     vector_.speed_forward    = smooth_speed_;
+    vector_.gear_shift_pulse = gear_shift_impulse_;
 }
 
 void SemanticBrain::update_bpm(float sub_bass, float onset_val, float dt, bool is_silent) {
@@ -337,10 +359,17 @@ void SemanticBrain::update_bpm(float sub_bass, float onset_val, float dt, bool i
 
         float confidence = std::clamp(best_corr * 1.5f, 0.2f, 0.98f);
 
-        // Actualización inercial suave
-        float alpha_bpm = 0.15f * confidence;
+        // Actualización inercial ágil con gear shift kinético
+        float bpm_diff = std::abs(detected_bpm - current_bpm_);
+        bool sudden_tempo_jump = (bpm_diff > 16.0f && confidence > 0.52f);
+        float adaptation_rate = sudden_tempo_jump ? 0.70f : 0.18f;
+        float alpha_bpm = adaptation_rate * confidence;
         current_bpm_ += alpha_bpm * (detected_bpm - current_bpm_);
-        current_bpm_conf_ += 0.20f * (confidence - current_bpm_conf_);
+        current_bpm_conf_ += 0.25f * (confidence - current_bpm_conf_);
+
+        if (sudden_tempo_jump && !is_silent) {
+            gear_shift_impulse_ = std::min(gear_shift_impulse_ + 0.90f, 1.2f);
+        }
     } else {
         current_bpm_conf_ *= 0.96f;
     }

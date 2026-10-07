@@ -29,7 +29,9 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
 
     // 1. Musical Speed: Directly driven by SemanticBrain's multi-genre kinetic DSP
     float target_speed = semantic.is_silent ? 0.20f : semantic.speed_forward;
-    smooth_speed_ += (target_speed - smooth_speed_) * (1.0f - std::exp(-8.0f * dt));
+    float speed_diff = std::abs(target_speed - smooth_speed_);
+    float director_speed_rate = (semantic.gear_shift_pulse > 0.15f || speed_diff > 3.5f) ? 22.0f : 8.0f;
+    smooth_speed_ += (target_speed - smooth_speed_) * (1.0f - std::exp(-director_speed_rate * dt));
 
     current_z_ += smooth_speed_ * dt;
 
@@ -111,10 +113,18 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
     glm::mat4 roll_mat = glm::rotate(glm::mat4(1.0f), smooth_roll_, camera_dir_);
     camera_up_ = glm::normalize(glm::vec3(roll_mat * glm::vec4(world_up, 0.0f)));
 
-    // 9. Cinematic Dynamic Field of View:
+    // 9. Cinematic Dynamic Field of View with Elastic Drop Punch:
+    if (semantic.gear_shift_pulse > 0.20f || (semantic.is_onset && (semantic.arousal > 0.25f || semantic.weight_metal > 0.20f || semantic.weight_dubstep > 0.20f))) {
+        float kick_strength = std::max(semantic.gear_shift_pulse, semantic.arousal * 0.85f + 0.25f);
+        fov_punch_impulse_ = std::min(fov_punch_impulse_ + 0.20f * kick_strength, 0.35f);
+    }
+    fov_punch_impulse_ *= std::exp(-9.5f * dt);
+
     float warp_fov_boost = std::clamp((smooth_speed_ - 3.0f) / 30.0f, 0.0f, 1.0f) * 12.0f;
-    float target_fov = glm::radians(66.0f + warp_fov_boost + semantic.arousal * 5.0f + (semantic.is_onset ? 3.0f : 0.0f));
-    smooth_fov_ += (target_fov - smooth_fov_) * (1.0f - std::exp(-6.0f * dt));
+    float target_fov = glm::radians(66.0f + warp_fov_boost + semantic.arousal * 5.0f + (semantic.is_onset ? 3.0f : 0.0f))
+                       + fov_punch_impulse_ * glm::radians(24.0f);
+    float fov_rate = (fov_punch_impulse_ > 0.04f || semantic.gear_shift_pulse > 0.15f) ? 22.0f : 6.0f;
+    smooth_fov_ += (target_fov - smooth_fov_) * (1.0f - std::exp(-fov_rate * dt));
     fov_radians_ = smooth_fov_;
 
     // Safety checks

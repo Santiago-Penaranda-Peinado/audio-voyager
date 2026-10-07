@@ -69,6 +69,7 @@ private:
     ImGuiOverlay imgui_;
 
     core::PhysicsTuners tuners_{};
+    float drop_flash_{0.0f};
 
     bool is_fullscreen_{false};
     int windowed_x_{100};

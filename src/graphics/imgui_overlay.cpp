@@ -173,22 +173,23 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
             ImGui::Separator();
         }
 
-        // 7. GPU Compute Particle System Controls
-        if (ImGui::CollapsingHeader("✨ GPU PARTICLES (AESTHETIC STARDUST)", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Checkbox("Enable GPU Particles", &tuners.enable_particles);
+        // 7. GPU Sparks & Kinetic Streaks (Supersonic Road Embers)
+        if (ImGui::CollapsingHeader("⚡ KINETIC ROAD SPARKS & FRICTION EMBERS", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Checkbox("Enable Kinetic Sparks", &tuners.enable_particles);
             if (tuners.enable_particles) {
-                ImGui::SliderFloat("Particle Size Scale", &tuners.particle_size, 0.20f, 3.00f, "%.2fx");
-                ImGui::SliderFloat("Particle Opacity Scale", &tuners.particle_opacity, 0.10f, 2.50f, "%.2fx");
-                ImGui::Text("Active Stardust Motes: 32,768 (Harmonic Wake & Ambient Drift)");
+                ImGui::SliderFloat("Spark Size", &tuners.particle_size, 0.20f, 3.00f, "%.2fx");
+                ImGui::SliderFloat("Spark Opacity / Heat", &tuners.particle_opacity, 0.10f, 2.50f, "%.2fx");
+                ImGui::Text("Aesthetic: Supersonic Road Friction Sparks (Chispas F1 / Bottoming Embers)");
+                ImGui::Text("Sparks spray dynamically from road & curbs on acceleration and bass drops.");
             } else {
-                ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "GPU Compute & Rendering: DISABLED (0 draws)");
+                ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Kinetic Sparks: DISABLED (Pure SDF Raymarching mode)");
             }
             ImGui::Separator();
         }
 
         // 8. Optical Post-Process Overrides
         if (ImGui::CollapsingHeader("🌌 OPTICAL POST-PROCESS CONTROLS", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::SliderFloat("Bloom Intensity", &tuners.bloom_intensity, 0.0f, 3.0f, "%.2f");
+            ImGui::SliderFloat("Bloom Intensity", &tuners.bloom_intensity, 0.0f, 1.50f, "%.2f");
             ImGui::SliderFloat("Chromatic Aberration", &tuners.chromatic_aberration, 0.0f, 0.05f, "%.4f");
             ImGui::SliderFloat("Speed Multiplier", &tuners.speed_multiplier, 0.2f, 3.0f, "%.2f");
         }

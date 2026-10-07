@@ -42,6 +42,7 @@ private:
     float smooth_speed_{3.0f};
     float headbang_impulse_{0.0f};
     float trauma_{0.0f};
+    float fov_punch_impulse_{0.0f};
 
     // Music-driven vertical flight axis (tunnel elevation/undulation)
     float music_altitude_{2.6f};
