@@ -403,8 +403,10 @@ void main() {
             biome_accent_pattern += magma_vein * w_metal * (0.55 + emission_pulse * 0.45);
         }
         if (w_cyber > 0.10) {
+            vec2 p_rel = p.xy - ro.xy;
+            float cyber_angle = (dot(p_rel, p_rel) > 1e-7) ? atan(p_rel.y, p_rel.x) : 0.0;
             float grid_line = max(smoothstep(0.92, 0.98, sin(p.z * 3.14159 * 0.5)), 
-                                  smoothstep(0.92, 0.98, sin(angle * 4.0)));
+                                  smoothstep(0.92, 0.98, sin(cyber_angle * 4.0)));
             biome_accent_pattern += grid_line * w_cyber * 0.75;
         }
         if (w_dubstep > 0.10) {
