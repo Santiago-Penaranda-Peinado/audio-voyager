@@ -31,27 +31,26 @@ void ParticleSystem::init_particle_buffers() {
     std::vector<GpuParticle> initial_particles(particle_count_);
     std::mt19937 rng(42);
     std::uniform_real_distribution<float> dist_theta(0.0f, 2.0f * static_cast<float>(M_PI));
-    std::uniform_real_distribution<float> dist_phi(-0.5f * static_cast<float>(M_PI), 0.5f * static_cast<float>(M_PI));
-    std::uniform_real_distribution<float> dist_r(1.0f, 20.0f);
+    std::uniform_real_distribution<float> dist_z(2.0f, 45.0f);
+    std::uniform_real_distribution<float> dist_r(0.6f, 4.2f);
     std::uniform_real_distribution<float> dist_life(0.2f, 1.0f);
-    std::uniform_real_distribution<float> dist_mass(0.5f, 1.2f);
+    std::uniform_real_distribution<float> dist_mass(0.6f, 1.4f);
 
     for (size_t i = 0; i < particle_count_; ++i) {
         float theta = dist_theta(rng);
-        float phi = dist_phi(rng);
+        float z = dist_z(rng);
         float r = dist_r(rng);
 
-        float x = r * std::cos(theta) * std::cos(phi);
-        float y = r * std::sin(phi) * 0.8f;
-        float z = r * std::sin(theta) * std::cos(phi);
+        float x = r * std::cos(theta);
+        float y = 2.5f + r * std::sin(theta) * 0.7f;
 
         initial_particles[i].pos_life[0] = x;
         initial_particles[i].pos_life[1] = y;
         initial_particles[i].pos_life[2] = z;
         initial_particles[i].pos_life[3] = dist_life(rng);
 
-        glm::vec3 pos(x, y, z);
-        glm::vec3 vel = glm::cross(glm::normalize(pos), glm::vec3(0.0f, 1.0f, 0.0f)) * 1.5f;
+        // Gentle forward spiral drift velocity
+        glm::vec3 vel(-std::sin(theta) * 0.8f, std::cos(theta) * 0.4f, 1.5f);
 
         initial_particles[i].vel_mass[0] = vel.x;
         initial_particles[i].vel_mass[1] = vel.y;
@@ -101,7 +100,10 @@ void ParticleSystem::update(float dt, float total_time,
                             const core::PhysicsAudioState& audio_state, 
                             const core::AudioSemanticVector& semantic, 
                             const glm::vec3& cam_pos,
-                            const glm::vec3& laser_pos) {
+                            const glm::vec3& cam_dir,
+                            const glm::vec3& laser_pos,
+                            float particle_size,
+                            float particle_opacity) {
     if (!compute_shader_.is_valid()) return;
 
     float raw_centroid = audio_state.stream_b.spectral_centroid_norm;
@@ -132,9 +134,9 @@ void ParticleSystem::update(float dt, float total_time,
     ubo_data.sim_params[2] = static_cast<float>(particle_count_);
     ubo_data.sim_params[3] = 0.985f;
 
-    ubo_data.physics_scales[0] = 1.0f;
-    ubo_data.physics_scales[1] = 1.8f * (1.0f + semantic.weight_metal * 1.6f + semantic.weight_dubstep * 2.0f);
-    ubo_data.physics_scales[2] = 2.5f;
+    ubo_data.physics_scales[0] = 0.8f;
+    ubo_data.physics_scales[1] = 1.0f * (1.0f + semantic.weight_metal * 1.2f + semantic.weight_dubstep * 1.5f);
+    ubo_data.physics_scales[2] = 2.0f;
     ubo_data.physics_scales[3] = 1.2f;
 
     // Cohesive, smooth temporally filtered particle colors
@@ -144,12 +146,12 @@ void ParticleSystem::update(float dt, float total_time,
     ubo_data.color_base[0] = blended_base.r;
     ubo_data.color_base[1] = blended_base.g;
     ubo_data.color_base[2] = blended_base.b;
-    ubo_data.color_base[3] = 1.0f;
+    ubo_data.color_base[3] = particle_size;
 
     ubo_data.color_peak[0] = blended_peak.r;
     ubo_data.color_peak[1] = blended_peak.g;
     ubo_data.color_peak[2] = blended_peak.b;
-    ubo_data.color_peak[3] = 0.0f;
+    ubo_data.color_peak[3] = particle_opacity;
 
     // Camera and Laser entity positions passed to GPU Compute Shader
     ubo_data.cam_pos[0] = cam_pos.x;
@@ -161,6 +163,11 @@ void ParticleSystem::update(float dt, float total_time,
     ubo_data.laser_pos[1] = laser_pos.y;
     ubo_data.laser_pos[2] = laser_pos.z;
     ubo_data.laser_pos[3] = semantic.treble_sparkle;
+
+    ubo_data.cam_dir[0] = cam_dir.x;
+    ubo_data.cam_dir[1] = cam_dir.y;
+    ubo_data.cam_dir[2] = cam_dir.z;
+    ubo_data.cam_dir[3] = 0.0f;
 
     glBindBuffer(GL_UNIFORM_BUFFER, ubo_);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(AudioPhysicsUbo), &ubo_data);

@@ -20,9 +20,10 @@ struct alignas(16) AudioPhysicsUbo {
     float sim_params[4];     // x: dt, y: total_time, z: particle_count, w: damping
     float physics_scales[4]; // x: gravity_scale, y: vorticity_scale, z: shockwave_scale, w: attraction_scale
     float color_base[4];     // rgb: base resting color, w: point_size_scale
-    float color_peak[4];     // rgb: peak high energy color, w: spare
+    float color_peak[4];     // rgb: peak high energy color, w: opacity_scale
     float cam_pos[4];        // xyz: camera pos, w: melodic_mids
     float laser_pos[4];      // xyz: laser entity pos, w: treble_sparkle
+    float cam_dir[4];        // xyz: camera forward dir, w: spare
 };
 
 struct LeakyIntegrator {
@@ -40,7 +41,7 @@ struct LeakyIntegrator {
 
 class ParticleSystem {
 public:
-    explicit ParticleSystem(size_t particle_count = 1048576);
+    explicit ParticleSystem(size_t particle_count = 32768);
     ~ParticleSystem();
 
     // Non-copyable
@@ -52,7 +53,10 @@ public:
                 const core::PhysicsAudioState& audio_state, 
                 const core::AudioSemanticVector& semantic, 
                 const glm::vec3& cam_pos,
-                const glm::vec3& laser_pos);
+                const glm::vec3& cam_dir,
+                const glm::vec3& laser_pos,
+                float particle_size = 1.0f,
+                float particle_opacity = 0.70f);
     void render(const glm::mat4& view_proj);
 
     [[nodiscard]] size_t get_particle_count() const noexcept { return particle_count_; }
@@ -61,7 +65,7 @@ private:
     void init_particle_buffers();
     void init_shaders();
 
-    size_t particle_count_{1048576};
+    size_t particle_count_{32768};
     uint32_t ssbo_{0};
     uint32_t vao_{0};
     uint32_t ubo_{0};

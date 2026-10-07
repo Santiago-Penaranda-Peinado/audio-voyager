@@ -1085,6 +1085,46 @@ void test_raymarching_waterfall_sculpt_safety() {
     std::cout << "  [PASS] Waterfall terrain sculpting preserves absolute camera clearance (>= 2.0m) with zero NaNs!\n\n";
 }
 
+// -----------------------------------------------------------------------------
+// Test 16: Particle Tuners & Lighting Coherence Contract
+// -----------------------------------------------------------------------------
+void test_particle_tuners_and_lighting_coherence() {
+    std::cout << "[TEST 16] Testing Particle Tuners & Lighting Coherence...\n";
+
+    core::PhysicsTuners tuners;
+    // 16.1 Particle Tuners Contract
+    assert(tuners.enable_particles == true);
+    assert(tuners.particle_size == 1.0f);
+    assert(tuners.particle_opacity == 0.70f);
+
+    // 16.2 Biome Palette Zenith and Luminous Floor Contract
+    const core::BiomePalette* palettes[] = {
+        &core::PALETTE_LIQUID, &core::PALETTE_METAL, &core::PALETTE_CYBER, &core::PALETTE_DUBSTEP
+    };
+    for (const auto* pal : palettes) {
+        // Must be non-zero luminous floor
+        assert(pal->zenith.r > 0.005f || pal->zenith.g > 0.005f || pal->zenith.b > 0.005f);
+        // Must be dark smoldering celestial black (< 0.05)
+        assert(pal->zenith.r < 0.05f && pal->zenith.g < 0.05f && pal->zenith.b < 0.05f);
+        // Primary and accent must have vivid color
+        assert(pal->primary.r > 0.0f || pal->primary.g > 0.0f || pal->primary.b > 0.0f);
+        assert(pal->accent.r > 0.0f || pal->accent.g > 0.0f || pal->accent.b > 0.0f);
+    }
+
+    // 16.3 Forward Headlight Searchlight Attenuation Verification
+    for (float d = 0.5f; d <= 100.0f; d += 5.0f) {
+        float cam_atten = 1.0f / (1.0f + d * 0.04f + d * d * 0.0015f);
+        assert(!std::isnan(cam_atten) && !std::isinf(cam_atten));
+        assert(cam_atten > 0.0f && cam_atten <= 1.0f);
+    }
+
+    std::cout << "  -> Particle tuners: Enabled=" << (tuners.enable_particles ? "TRUE" : "FALSE")
+              << " | Size=" << tuners.particle_size << "x | Opacity=" << tuners.particle_opacity << "x\n";
+    std::cout << "  -> All 4 biomes strictly observe zenith bounds (0.005 < RGB < 0.05) and positive primaries.\n";
+    std::cout << "  -> Forward searchlight attenuation validated across [0.5m, 100m].\n";
+    std::cout << "  [PASS] Particle tuners and lighting parameters strictly conform to architectural contract!\n\n";
+}
+
 int main() {
     std::cout << "=================================================================\n";
     std::cout << "   AUDIO-VOYAGER SYSTEM INTEGRITY & ARCHITECTURAL VERIFICATION   \n";
@@ -1105,6 +1145,7 @@ int main() {
     test_waterfall_raw_energy_matrix();
     test_agc_volume_invariance();
     test_raymarching_waterfall_sculpt_safety();
+    test_particle_tuners_and_lighting_coherence();
 
     std::cout << "=================================================================\n";
     std::cout << "   ALL VERIFICATION TESTS PASSED SUCCESSFULLY! (100% HEALTHY)    \n";

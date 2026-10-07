@@ -276,25 +276,25 @@ float calcAO(vec3 p, vec3 n) {
 vec3 getSkyColor(vec3 rd, float arousal, float is_silent) {
     float horizon = smoothstep(-0.2, 0.45, rd.y);
     
-    vec3 zenith_color = u_color_zenith.rgb;
-    vec3 horizon_color = mix(u_color_accent.rgb * 0.35, u_color_primary.rgb * 0.55, 0.5) * mix(0.18 + arousal * 0.08, 0.06, is_silent);
+    vec3 zenith_color = max(u_color_zenith.rgb * 1.4, vec3(0.02, 0.03, 0.05));
+    vec3 horizon_color = mix(u_color_accent.rgb * 0.45, u_color_primary.rgb * 0.65, 0.5) * mix(0.28 + arousal * 0.12, 0.14, is_silent);
     vec3 sky = mix(horizon_color, zenith_color, horizon);
 
     // Spherical 3D Stars
     vec3 star_dir = normalize(rd);
     float star_val = hash3(floor(star_dir * 120.0));
-    if (star_val > 0.988) {
+    if (star_val > 0.985) {
         float blink = sin(star_val * 80.0 + u_resolution_time.z * 2.5) * 0.5 + 0.5;
-        float star_brightness = smoothstep(0.988, 1.0, star_val) * blink;
-        sky += vec3(star_brightness * 0.95);
+        float star_brightness = smoothstep(0.985, 1.0, star_val) * blink;
+        sky += vec3(star_brightness * 1.1);
     }
 
     // Upper Aurora Ribbon
     if (rd.y > 0.1) {
         float aurora_wave = sin(rd.x * 6.0 + u_resolution_time.z * 0.4) * cos(rd.z * 4.0);
         float aurora_band = smoothstep(0.3, 0.6, rd.y + aurora_wave * 0.15) * smoothstep(0.8, 0.5, rd.y);
-        vec3 aurora_color = u_color_accent.rgb * 0.45 * (1.0 - is_silent * 0.8);
-        sky += aurora_color * aurora_band * 0.6;
+        vec3 aurora_color = u_color_accent.rgb * 0.65 * (1.0 - is_silent * 0.6);
+        sky += aurora_color * aurora_band * 0.8;
     }
 
     return sky;
@@ -379,59 +379,119 @@ void main() {
         vec3 n = calcNormal(p);
         float ao = calcAO(p, n);
 
-        // 3D Point Light from Laser Ribbon Entity
+        // 1. Camera Forward Searchlight / Cockpit Headlight
+        // Casts a powerful forward illumination cone penetrating 60m into the tunnel
+        vec3 cam_to_p = p - ro;
+        float cam_dist = length(cam_to_p);
+        vec3 cam_dir_p = cam_to_p / max(cam_dist, 0.001);
+        float spot_cos = dot(cam_dir_p, fwd);
+        float spot_beam = smoothstep(0.20, 0.94, spot_cos); // wide forward illumination cone
+        float cam_atten = 1.0 / (1.0 + cam_dist * 0.04 + cam_dist * cam_dist * 0.0015);
+        // Half-Lambert wrap lighting: ensures glancing corridor walls receive light and relief
+        float cam_diff = clamp(dot(n, -cam_dir_p) * 0.65 + 0.35, 0.0, 1.0);
+        vec3 headlight_color = (vec3(0.85, 0.90, 1.0) * 0.65 + synesthetic_color * 1.5 + accent_color * 0.7);
+        vec3 cam_headlight = headlight_color * (cam_diff * spot_beam * cam_atten * 2.2);
+
+        // 2. 3D Laser Ribbon Entity Point Light (omnidirectional luminous pool)
         vec3 laser_pos = u_laser_pos.xyz;
         vec3 l_dir = laser_pos - p;
         float l_dist = length(l_dir);
         l_dir = normalize(l_dir);
 
-        float l_atten = 1.0 / (1.0 + l_dist * 0.15 + l_dist * l_dist * 0.04);
+        float l_atten = 1.0 / (1.0 + l_dist * 0.05 + l_dist * l_dist * 0.005);
         float diff = max(dot(n, l_dir), 0.0);
 
         // Specular highlight
         vec3 view_dir = -rd;
         vec3 half_v = normalize(l_dir + view_dir);
-        float spec_power = mix(24.0, 110.0, max(w_metal, w_dubstep));
+        float spec_power = mix(24.0, 90.0, max(w_metal, w_dubstep));
         float spec = pow(max(dot(n, half_v), 0.0), spec_power);
 
-        vec3 albedo = synesthetic_color * 0.65;
+        vec3 laser_light = (synesthetic_color * (diff * 2.8) + accent_color * (spec * 3.2)) * l_atten * (1.0 - is_silent * 0.6);
 
-        // Biome-specific accent highlights & emissive veins (Multi-tonal harmonized materials)
+        // 3. Ambient Light (Rich sky bounce + synesthetic fill + solid floor so scene is never pitch black)
+        vec3 ambient = (sky_color * 1.2 + synesthetic_color * 0.45 + vec3(0.06, 0.07, 0.09)) * (ao * 0.60 + 0.40);
+
+        // 4. Distinct Biome Roadways, Fissures, Guide Rails & Patterns
         float biome_accent_pattern = 0.0;
-        if (w_metal > 0.10) {
-            float magma_vein = smoothstep(0.70, 0.95, abs(sin(p.x * 2.2 + p.z * 1.5)));
-            biome_accent_pattern += magma_vein * w_metal * (0.55 + emission_pulse * 0.45);
-        }
-        if (w_cyber > 0.10) {
+        float track_glow = 0.0;
+
+        // Ground/Floor detection: surfaces pointing upwards below camera
+        float is_ground = smoothstep(0.15, 0.65, n.y) * step(p.y, ro.y + 0.5);
+        // Wall detection: vertical surfaces on corridor edges
+        float is_wall = smoothstep(0.30, 0.80, abs(n.x));
+
+        float track_x = p.x - ro.x;
+        float dist_center = abs(track_x);
+
+        if (w_cyber > 0.05) {
+            // High-speed Cyber Matrix: Runway markings, center lane, side rails, pulse rings
+            float center_lane = smoothstep(0.14, 0.02, dist_center) * smoothstep(0.25, 0.75, sin(p.z * 1.5 - time * 9.0));
+            float side_rails  = smoothstep(0.10, 0.02, abs(dist_center - 2.0));
+            float outer_curb  = smoothstep(0.12, 0.02, abs(dist_center - 3.2));
             vec2 p_rel = p.xy - ro.xy;
             float cyber_angle = (dot(p_rel, p_rel) > 1e-7) ? atan(p_rel.y, p_rel.x) : 0.0;
-            float grid_line = max(smoothstep(0.92, 0.98, sin(p.z * 3.14159 * 0.5)), 
-                                  smoothstep(0.92, 0.98, sin(cyber_angle * 4.0)));
-            biome_accent_pattern += grid_line * w_cyber * 0.75;
+            float grid_cross  = smoothstep(0.88, 0.98, sin(p.z * 1.57079));
+            float wall_ribs   = smoothstep(0.85, 0.98, sin(cyber_angle * 6.0));
+
+            float cyber_floor = is_ground * (center_lane * 2.8 + side_rails * 1.8 + outer_curb * 1.2 + grid_cross * 0.8);
+            float cyber_walls = is_wall * (wall_ribs * 1.4 + grid_cross * 0.6);
+
+            track_glow += (cyber_floor + cyber_walls) * w_cyber;
+            biome_accent_pattern += (cyber_floor * 0.7 + cyber_walls * 0.5) * w_cyber;
         }
-        if (w_dubstep > 0.10) {
-            float ring_glow = smoothstep(0.65, 0.98, sin(p.z * 1.57079 - time * 6.0));
-            biome_accent_pattern += ring_glow * w_dubstep * 0.65;
+        if (w_metal > 0.05) {
+            // Obsidian Chasm: glowing magma fissure along center, basalt spire veins
+            float center_fissure = smoothstep(0.60, 0.05, dist_center) * smoothstep(0.30, 0.95, abs(sin(p.z * 0.8 + sin(p.x * 2.0))));
+            float magma_vein = smoothstep(0.55, 0.95, abs(sin(p.x * 2.2 + sin(p.z * 0.8) * 1.5) * cos(p.z * 1.2)));
+            float spire_vein = smoothstep(0.65, 0.96, abs(sin(p.y * 3.0 + p.z * 0.5)));
+
+            float metal_floor = is_ground * (center_fissure * 3.0 + magma_vein * 1.6);
+            float metal_walls = is_wall * (spire_vein * 1.5 + magma_vein * 0.8);
+
+            track_glow += (metal_floor + metal_walls) * w_metal * (0.9 + emission_pulse * 0.6);
+            biome_accent_pattern += (metal_floor * 0.8 + metal_walls * 0.5) * w_metal;
         }
-        if (w_liquid > 0.10) {
-            float caustics = smoothstep(0.55, 0.95, sin(p.x * 1.2 + time) * cos(p.z * 1.2 - time));
-            biome_accent_pattern += caustics * w_liquid * 0.40;
+        if (w_dubstep > 0.05) {
+            // Quantum Bass Void: undulating resonant rings, bass ripple tracks, hexagonal strobe
+            float ring_glow = smoothstep(0.55, 0.96, sin(p.z * 1.57079 - time * 6.0));
+            vec2 p_rel = p.xy - ro.xy;
+            float hex_angle = (dot(p_rel, p_rel) > 1e-7) ? atan(p_rel.y, p_rel.x) : 0.0;
+            float hex_pulse = smoothstep(0.65, 0.96, sin(hex_angle * 6.0 + p.z * 0.5));
+            float bass_track = is_ground * smoothstep(0.22, 0.02, abs(dist_center - 1.5)) * (0.8 + emission_pulse * 0.8);
+
+            float dub_features = ring_glow * 1.8 + hex_pulse * 1.0 + bass_track * 1.6;
+            track_glow += dub_features * w_dubstep * (0.8 + emission_pulse * 0.6);
+            biome_accent_pattern += dub_features * 0.6 * w_dubstep;
+        }
+        if (w_liquid > 0.05) {
+            // Liquid Silk Ocean: bioluminescent wave crests, caustic webs, luminous flight wake
+            float wave_crests = smoothstep(0.30, 0.85, sin(p.x * 0.6 + time * 1.4) * cos(p.z * 0.5 - time * 0.8));
+            float caustics = smoothstep(0.45, 0.90, sin(p.x * 1.8 + time * 2.0) * sin(p.z * 1.8 - time * 2.0));
+            float ocean_lane = is_ground * smoothstep(0.30, 0.02, dist_center) * (0.8 + wave_crests * 0.8);
+
+            float liq_features = is_ground * (wave_crests * 1.4 + caustics * 1.1 + ocean_lane * 1.6);
+            track_glow += liq_features * w_liquid * (0.7 + emission_pulse * 0.5);
+            biome_accent_pattern += liq_features * 0.5 * w_liquid;
         }
 
-        albedo = mix(albedo, accent_color * 0.95, clamp(biome_accent_pattern, 0.0, 0.85));
+        // Direct emissive light from track features and veins
+        vec3 emissive = accent_color * (track_glow * 2.2) * (1.0 - is_silent * 0.5);
+
+        // 5. Base Albedo: solid neutral reflectance floor + synesthetic tint
+        vec3 base_mat = mix(vec3(0.20, 0.22, 0.26), synesthetic_color * 1.2, 0.65);
+        vec3 albedo = mix(base_mat, accent_color * 1.1, clamp(biome_accent_pattern, 0.0, 0.85));
 
         // Fresnel reflection (harmonized with secondary accent color)
-        float fresnel = pow(clamp(1.0 - max(dot(n, view_dir), 0.0), 0.0, 1.0), 3.5);
-        vec3 fresnel_rim = mix(albedo * 0.35, accent_color * 0.90, fresnel) * (fresnel * 0.55);
+        float fresnel = pow(clamp(1.0 - max(dot(n, view_dir), 0.0), 0.0, 1.0), 3.0);
+        vec3 fresnel_rim = mix(albedo * 0.40, accent_color * 1.2, fresnel) * (fresnel * 0.70);
 
-        vec3 laser_light = (synesthetic_color * (diff * 2.2) + accent_color * (spec * 2.5)) * l_atten * (1.0 - is_silent * 0.8);
-        vec3 ambient = sky_color * (ao * 1.2 + 0.3);
+        // Combined Surface Color
+        scene_color = (albedo * (ambient + cam_headlight + laser_light) + emissive + fresnel_rim) * ao;
 
-        scene_color = (albedo * (ambient + laser_light) + fresnel_rim) * ao;
-
-        // Depth fog (Delayed onset past 35m: crystal clear forward view of tunnel)
+        // Depth fog (Smooth celestial transition past 35m)
         float fog_dist = max(0.0, t - 35.0);
-        float fog = 1.0 - exp(-fog_dist * 0.022);
+        float fog = 1.0 - exp(-fog_dist * 0.018);
         scene_color = mix(scene_color, sky_color, fog);
     } else {
         scene_color = sky_color;

@@ -19,7 +19,7 @@ void check_gl_error_step(const char* location) {
 
 Renderer::Renderer(const WindowConfig& config)
     : context_(config)
-    , particle_system_(1048576) {
+    , particle_system_(32768) {
 }
 
 Renderer::~Renderer() {
@@ -246,7 +246,7 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
 
     glDisable(GL_BLEND);
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+    glDepthFunc(GL_ALWAYS); // Always pass fullscreen quad so all color fragments and gl_FragDepth values are written
     glDepthMask(GL_TRUE);
 
     RaymarchingUboData ubo_data{};
@@ -311,6 +311,8 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
 
     raymarching_shader_.bind();
     raymarching_shader_.set_mat4("u_view_proj", view_proj);
+    glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, waterfall_texture_);
     raymarching_shader_.set_int("u_waterfall_energy", 2);
     glBindBufferBase(GL_UNIFORM_BUFFER, 0, raymarching_ubo_);
 
@@ -320,16 +322,26 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
 
     raymarching_shader_.unbind();
 
-    // 5. Awaken GPU Particle System (1,048,576 GPU Compute Particles depth-tested against raymarched geometry)
-    glEnable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE); // Read-only depth test: particles occluded by tunnel walls without overwriting
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Additive luminous blending
+    // 5. Aesthetic GPU Particle System (Harmonic Stardust & Wake Embers)
+    if (tuners_.enable_particles) {
+        glEnable(GL_DEPTH_TEST);
+        glDepthMask(GL_FALSE); // Read-only depth test: particles occluded by tunnel walls without overwriting
+        glDepthFunc(GL_LEQUAL);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Additive luminous blending
 
-    particle_system_.update(dt, time, audio_state, semantic, cam_pos, laser_pos);
-    particle_system_.render(view_proj);
+        particle_system_.update(dt, time, audio_state, semantic, cam_pos, cam_dir, laser_pos,
+                                tuners_.particle_size, tuners_.particle_opacity);
+        particle_system_.render(view_proj);
+    }
 
     // 6. Render 3D Laser Ribbon Oscilloscope Entity
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    glDepthFunc(GL_LEQUAL);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+
     oscilloscope_.update(audio_state.stream_a, laser_pos, cam_dir, cam_up);
     oscilloscope_.render(view_proj, time, 
                         semantic.is_silent ? 0.05f : (semantic.emission_pulse * 0.4f), 

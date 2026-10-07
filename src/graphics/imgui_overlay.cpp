@@ -173,8 +173,21 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
             ImGui::Separator();
         }
 
-        // 7. Optical Post-Process Overrides
-        if (ImGui::CollapsingHeader("✨ OPTICAL POST-PROCESS CONTROLS", ImGuiTreeNodeFlags_DefaultOpen)) {
+        // 7. GPU Compute Particle System Controls
+        if (ImGui::CollapsingHeader("✨ GPU PARTICLES (AESTHETIC STARDUST)", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::Checkbox("Enable GPU Particles", &tuners.enable_particles);
+            if (tuners.enable_particles) {
+                ImGui::SliderFloat("Particle Size Scale", &tuners.particle_size, 0.20f, 3.00f, "%.2fx");
+                ImGui::SliderFloat("Particle Opacity Scale", &tuners.particle_opacity, 0.10f, 2.50f, "%.2fx");
+                ImGui::Text("Active Stardust Motes: 32,768 (Harmonic Wake & Ambient Drift)");
+            } else {
+                ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "GPU Compute & Rendering: DISABLED (0 draws)");
+            }
+            ImGui::Separator();
+        }
+
+        // 8. Optical Post-Process Overrides
+        if (ImGui::CollapsingHeader("🌌 OPTICAL POST-PROCESS CONTROLS", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::SliderFloat("Bloom Intensity", &tuners.bloom_intensity, 0.0f, 3.0f, "%.2f");
             ImGui::SliderFloat("Chromatic Aberration", &tuners.chromatic_aberration, 0.0f, 0.05f, "%.4f");
             ImGui::SliderFloat("Speed Multiplier", &tuners.speed_multiplier, 0.2f, 3.0f, "%.2f");

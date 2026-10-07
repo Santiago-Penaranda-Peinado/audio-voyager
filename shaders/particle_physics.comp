@@ -17,9 +17,10 @@ layout(std140, binding = 1) uniform AudioPhysicsUniforms {
     vec4 u_sim_params;     // x: delta_time, y: total_time, z: particle_count, w: damping
     vec4 u_physics_scales; // x: gravity_scale, y: vorticity_scale, z: shockwave_scale, w: attraction_scale
     vec4 u_color_base;     // rgb: base color, w: point_size_scale
-    vec4 u_color_peak;     // rgb: peak color, w: spare
+    vec4 u_color_peak;     // rgb: peak color, w: opacity_scale
     vec4 u_cam_pos;        // xyz: camera pos, w: melodic_mids
     vec4 u_laser_pos;      // xyz: laser entity pos, w: treble_sparkle
+    vec4 u_cam_dir;        // xyz: camera forward dir, w: spare
 };
 
 // =============================================================================
@@ -94,10 +95,6 @@ vec3 computeCurl(vec3 p) {
     vec3 dy = vec3(0.0, eps, 0.0);
     vec3 dz = vec3(0.0, 0.0, eps);
 
-    float n0 = snoise(p + dy) - snoise(p - dy);
-    float n1 = snoise(p + dz) - snoise(p - dz);
-    float n2 = snoise(p + dx) - snoise(p - dx);
-
     vec3 curl;
     curl.x = (snoise(p + dy + dz) - snoise(p - dy + dz) - (snoise(p + dy - dz) - snoise(p - dy - dz))) / (4.0 * eps);
     curl.y = (snoise(p + dz + dx) - snoise(p - dz + dx) - (snoise(p + dz - dx) - snoise(p - dz - dx))) / (4.0 * eps);
@@ -127,8 +124,11 @@ void main() {
     float mass = p.vel_mass.w;
 
     vec3 cam_pos = u_cam_pos.xyz;
+    vec3 cam_dir = normalize(u_cam_dir.xyz);
     vec3 laser_pos = u_laser_pos.xyz;
-    float dist_to_cam = length(pos - cam_pos);
+    vec3 to_cam = pos - cam_pos;
+    float dist_to_cam = length(to_cam);
+    float forward_proj = dot(to_cam, cam_dir);
 
     float spec_centroid = u_audio_physics.x;
     float dissonance = u_audio_physics.y;
@@ -136,6 +136,7 @@ void main() {
     float is_onset = u_audio_physics.w;
     float rms = u_audio_energy.x;
     float sub_bass = u_audio_energy.z;
+    float treble = u_laser_pos.w;
 
     float grav_mult = u_physics_scales.x;
     float vort_mult = u_physics_scales.y;
@@ -143,50 +144,95 @@ void main() {
     float attr_mult = u_physics_scales.w;
     float base_damping = u_sim_params.w;
 
-    // 1. Directional Buoyancy / Updraft Force
-    vec3 gravity = vec3(0.0, (spec_centroid - 0.40) * grav_mult, 0.0);
+    // Archetype partition: 70% slipstream wake embers, 30% ambient tunnel stardust
+    bool is_wake = (id % 10u < 7u);
 
-    // 2. Vorticity & 3D Curl Noise Swirl
-    vec3 noise_pos = (pos - cam_pos) * 0.12 + vec3(time * 0.08, time * 0.10, time * 0.06);
-    vec3 curl = computeCurl(noise_pos);
-    vec3 vorticity_force = curl * (dissonance * vort_mult * 2.5 + 0.8);
+    vec3 total_acc = vec3(0.0);
 
-    // 3. Kinetic Shockwave Burst from Laser Entity
-    vec3 shockwave_force = vec3(0.0);
-    vec3 to_laser = pos - laser_pos;
-    float dist_laser = length(to_laser);
-    if (is_onset > 0.5 || onset > 0.35) {
-        vec3 dir = (dist_laser > 0.01) ? normalize(to_laser) : vec3(0.0, 1.0, 0.0);
-        float falloff = 1.0 / (dist_laser * 0.3 + 0.4);
-        shockwave_force = dir * (onset * shock_mult * falloff * 2.0);
-        life = 1.0;
+    if (is_wake) {
+        // --- 1. Slipstream Wake Embers (Aerodynamic ribbon spiral) ---
+        vec3 to_laser = pos - laser_pos;
+        float d_laser = length(to_laser);
+
+        // Gentle centripetal spring toward the laser ribbon axis
+        vec3 laser_attract = -to_laser * (1.2 + sub_bass * attr_mult * 1.5);
+
+        // Smooth helical swirl around the forward flight axis
+        vec3 tangent = cross(normalize(to_laser + vec3(0.001)), cam_dir);
+        vec3 swirl_force = tangent * (0.8 + dissonance * 1.2 + treble * 1.4);
+
+        // Subtle curl noise turbulence for natural flow
+        vec3 noise_pos = (pos - cam_pos) * 0.08 + vec3(time * 0.05);
+        vec3 curl = computeCurl(noise_pos) * (vort_mult * 0.35);
+
+        // Kinetic burst on drum kick
+        vec3 shock_force = vec3(0.0);
+        if (is_onset > 0.5 || onset > 0.35) {
+            shock_force = normalize(to_laser + vec3(0.001)) * (onset * shock_mult * 2.2);
+            life = 1.0;
+        }
+
+        total_acc = laser_attract + swirl_force + curl + shock_force;
+    } else {
+        // --- 2. Ambient Tunnel Stardust (Constellations floating along walls) ---
+        // Buoyant upward drift modulated by spectral centroid
+        vec3 buoyancy = vec3(0.0, (spec_centroid - 0.45) * grav_mult * 0.6, 0.0);
+
+        // Gentle acoustic breathing pulsation (expanding on bass drops)
+        vec2 radial_xy = pos.xy - cam_pos.xy;
+        float r_len = length(radial_xy);
+        vec3 radial_pulse = vec3(normalize(radial_xy + vec2(0.001)) * (sub_bass * 1.5 - 0.2), 0.0);
+
+        // Soft ambient curl drift
+        vec3 noise_pos = (pos - cam_pos) * 0.06 + vec3(0.0, time * 0.04, time * 0.02);
+        vec3 curl = computeCurl(noise_pos) * (vort_mult * 0.25);
+
+        // Onset acoustic ripple
+        vec3 shock_force = vec3(0.0);
+        if (is_onset > 0.5) {
+            shock_force = vec3(normalize(radial_xy + vec2(0.001)), 0.0) * (onset * shock_mult * 1.8);
+        }
+
+        total_acc = buoyancy + radial_pulse + curl + shock_force;
     }
 
-    // 4. Centripetal Attraction towards Laser Ribbon Entity
-    vec3 attraction_force = -to_laser * (0.6 + sub_bass * attr_mult + rms * 1.5);
-
-    // 5. Total Acceleration & Integration
-    vec3 total_acc = gravity + vorticity_force + shockwave_force + attraction_force;
-
-    float dynamic_damping = base_damping - (1.0 - rms) * 0.03;
-    vel += total_acc * (dt / max(mass, 0.1));
+    // Velocity integration with dynamic damping
+    float dynamic_damping = base_damping - (1.0 - rms) * 0.015;
+    vel += total_acc * (dt / max(mass, 0.2));
     vel *= dynamic_damping;
     pos += vel * dt;
 
-    life -= dt * (0.12 + rms * 0.18);
+    // Graceful life decay
+    life -= dt * (0.10 + rms * 0.12);
 
-    // 6. Camera-Centric Infinite Respawn (Never leaves particles behind in flight)
-    if (life <= 0.0 || dist_to_cam > 32.0 || isnan(pos.x)) {
-        float seed = float(id) + time * 100.0;
+    // Camera-centric forward respawn: ALWAYS respawn well ahead of camera, never in player's face!
+    if (life <= 0.0 || forward_proj < -1.5 || dist_to_cam > 48.0 || isnan(pos.x)) {
+        float seed = float(id) * 1.6180339 + time * 60.0;
         float theta = hash(uint(seed)) * 6.2831853;
-        float phi = (hash(uint(seed + 1.0)) - 0.5) * 3.14159;
-        float r = 1.5 + hash(uint(seed + 2.0)) * 14.0;
+        float forward_offset = 6.0 + hash(uint(seed + 1.0)) * 36.0;
 
-        vec3 offset = vec3(r * cos(theta) * cos(phi), r * sin(phi) * 0.6, r * sin(theta) * cos(phi));
-        pos = cam_pos + offset + normalize(laser_pos - cam_pos) * (hash(uint(seed + 5.0)) * 5.0);
-        vel = cross(normalize(offset + vec3(0.001)), vec3(0.0, 1.0, 0.0)) * (1.2 + sub_bass * 3.0);
-        life = 0.8 + hash(uint(seed + 3.0)) * 0.4;
-        mass = 0.5 + hash(uint(seed + 4.0)) * 0.8;
+        vec3 center_ahead = cam_pos + cam_dir * forward_offset;
+
+        // Camera-aligned orthonormal basis
+        vec3 fwd = cam_dir;
+        vec3 up_hint = vec3(0.0, 1.0, 0.0);
+        vec3 right = normalize(cross(fwd, up_hint));
+        vec3 up = cross(right, fwd);
+
+        if (is_wake) {
+            // Wake particles spawn around the laser path
+            float r = 0.3 + hash(uint(seed + 2.0)) * 1.5;
+            pos = center_ahead + right * (r * cos(theta)) + up * (r * sin(theta) * 0.7);
+            vel = cam_dir * (1.2 + sub_bass * 2.0) + (-right * sin(theta) + up * cos(theta)) * 0.6;
+        } else {
+            // Ambient motes spawn along the tunnel/canyon boundary
+            float r = 2.4 + hash(uint(seed + 2.0)) * 1.8;
+            pos = center_ahead + right * (r * cos(theta)) + up * (r * sin(theta));
+            vel = (-right * sin(theta) * 0.3 + up * (cos(theta) * 0.2)) + cam_dir * 0.3;
+        }
+
+        life = 0.7 + hash(uint(seed + 3.0)) * 0.5;
+        mass = 0.6 + hash(uint(seed + 4.0)) * 0.6;
     }
 
     p.pos_life = vec4(pos, life);

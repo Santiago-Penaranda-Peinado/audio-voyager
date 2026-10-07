@@ -126,7 +126,7 @@ struct BiomePalette {
 inline const BiomePalette PALETTE_LIQUID = {
     .primary       = glm::vec3(0.08f, 0.42f, 0.88f),
     .accent        = glm::vec3(1.00f, 0.72f, 0.22f),
-    .zenith        = glm::vec3(0.005f, 0.012f, 0.028f),
+    .zenith        = glm::vec3(0.012f, 0.025f, 0.048f),
     .particle_base = glm::vec3(0.06f, 0.38f, 0.85f),
     .particle_peak = glm::vec3(1.00f, 0.75f, 0.25f)
 };
@@ -135,7 +135,7 @@ inline const BiomePalette PALETTE_LIQUID = {
 inline const BiomePalette PALETTE_METAL = {
     .primary       = glm::vec3(0.92f, 0.08f, 0.05f),
     .accent        = glm::vec3(1.00f, 0.45f, 0.05f),
-    .zenith        = glm::vec3(0.022f, 0.004f, 0.006f),
+    .zenith        = glm::vec3(0.035f, 0.008f, 0.012f),
     .particle_base = glm::vec3(0.90f, 0.10f, 0.04f),
     .particle_peak = glm::vec3(1.00f, 0.55f, 0.10f)
 };
@@ -144,7 +144,7 @@ inline const BiomePalette PALETTE_METAL = {
 inline const BiomePalette PALETTE_CYBER = {
     .primary       = glm::vec3(0.02f, 0.82f, 0.95f),
     .accent        = glm::vec3(1.00f, 0.08f, 0.75f),
-    .zenith        = glm::vec3(0.008f, 0.014f, 0.040f),
+    .zenith        = glm::vec3(0.015f, 0.028f, 0.048f),
     .particle_base = glm::vec3(0.02f, 0.80f, 0.95f),
     .particle_peak = glm::vec3(1.00f, 0.06f, 0.80f)
 };
@@ -153,7 +153,7 @@ inline const BiomePalette PALETTE_CYBER = {
 inline const BiomePalette PALETTE_DUBSTEP = {
     .primary       = glm::vec3(0.55f, 0.05f, 0.95f),
     .accent        = glm::vec3(0.15f, 1.00f, 0.30f),
-    .zenith        = glm::vec3(0.018f, 0.006f, 0.035f),
+    .zenith        = glm::vec3(0.025f, 0.010f, 0.048f),
     .particle_base = glm::vec3(0.15f, 1.00f, 0.32f),
     .particle_peak = glm::vec3(0.70f, 0.10f, 1.00f)
 };
@@ -173,6 +173,11 @@ struct PhysicsTuners {
     float speed_multiplier{1.0f};
     float input_gain{1.0f};       // Manual input gain / sensitivity multiplier [0.10x - 5.00x]
     bool agc_enabled{true};       // Automatic Gain Control (Volume normalizer)
+
+    // GPU Compute Particle System Controls
+    bool enable_particles{true};  // Master ON/OFF toggle for compute & rendering
+    float particle_size{1.0f};    // Particle point sprite size multiplier [0.2x - 3.0x]
+    float particle_opacity{0.70f};// Particle alpha opacity multiplier [0.1x - 2.5x]
 
     std::array<float, 3> color_base{0.9f, 0.6f, 0.2f};
     std::array<float, 3> color_peak{0.4f, 0.8f, 1.0f};
