@@ -25,7 +25,7 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
     elapsed_time_ += dt;
 
     // 1. Musical Speed: Dynamic acceleration/deceleration directly driven by DSP
-    float target_speed = semantic.is_silent ? 0.20f : semantic.speed_forward;
+    float target_speed = semantic.is_silent ? 5.5f : semantic.speed_forward;
     float speed_diff = std::abs(target_speed - smooth_speed_);
     float director_speed_rate = (semantic.gear_shift_pulse > 0.15f || speed_diff > 3.5f) ? 22.0f : 8.0f;
     smooth_speed_ += (target_speed - smooth_speed_) * (1.0f - std::exp(-director_speed_rate * dt));
@@ -34,7 +34,6 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
     // 2. World-Space Spline Sampling C(z) = (curve_x(z), curve_y(z))
     glm::vec2 track_now    = get_track_spline(current_z_);
     glm::vec2 track_deriv2 = get_track_spline_deriv2(current_z_);
-    glm::vec2 track_look   = get_track_spline(current_z_ + 22.0f);
     glm::vec2 track_entity = get_track_spline(current_z_ + 8.0f);
 
     // 3. Centrifugal Acceleration: Physical lateral acceleration outward from track curvature
@@ -131,7 +130,7 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
     laser_pos_ = glm::vec3(track_entity.x, track_entity.y + 0.15f, current_z_ + 8.0f);
 
     // 11. Cinematic Dynamic Field of View with Elastic Drop Punch (2nd-Order Spring):
-    float warp_fov_boost = std::clamp((smooth_speed_ - 3.0f) / 30.0f, 0.0f, 1.0f) * glm::radians(12.0f);
+    float warp_fov_boost = std::clamp((smooth_speed_ - 7.0f) / 28.0f, 0.0f, 1.0f) * glm::radians(14.0f);
     float target_fov = glm::radians(66.0f) + warp_fov_boost + semantic.arousal * glm::radians(5.0f);
 
     if (onset_triggered && (semantic.gear_shift_pulse > 0.18f || semantic.arousal > 0.25f || semantic.weight_metal > 0.20f || semantic.weight_dubstep > 0.20f)) {

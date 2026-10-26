@@ -95,7 +95,7 @@ struct AudioSemanticVector {
     bool is_silent{false};         // Quiescence / Silence state
 
     // 3. Autonomous Kinematics
-    float speed_forward{1.3f};     // Camera cruising speed (m/s)
+    float speed_forward{7.5f};     // Camera cruising speed (m/s) [elevated from 1.3/3.0m/s for brisk, engaging flight]
     float camera_roll{0.0f};       // Camera bank / roll angle (radians)
     float bpm{120.0f};             // Detected Tempo
     float bpm_confidence{0.5f};    // Tempo Confidence (decays to 0 on silence)
@@ -175,8 +175,8 @@ struct PhysicsTuners {
     float input_gain{1.0f};       // Manual input gain / sensitivity multiplier [0.10x - 5.00x]
     bool agc_enabled{true};       // Automatic Gain Control (Volume normalizer)
 
-    // GPU Compute Particle System Controls
-    bool enable_particles{true};  // Master ON/OFF toggle for compute & rendering
+    // GPU Compute Particle System Controls (Retired in Phase 2)
+    bool enable_particles{false}; // Master ON/OFF toggle (disabled by default in Phase 2 in favor of authentic 3D SDF geometry)
     float particle_size{1.0f};    // Particle point sprite size multiplier [0.2x - 3.0x]
     float particle_opacity{0.70f};// Particle alpha opacity multiplier [0.1x - 2.5x]
 

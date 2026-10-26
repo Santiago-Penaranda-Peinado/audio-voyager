@@ -192,7 +192,7 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
         smooth_mids_     += (1.0f - std::exp(-8.0f * dt)) * (0.0f - smooth_mids_);
         smooth_air_      += (1.0f - std::exp(-8.0f * dt)) * (0.0f - smooth_air_);
         smooth_emission_ += (1.0f - std::exp(-5.0f * dt)) * (0.35f - smooth_emission_);
-        smooth_speed_    += (1.0f - std::exp(-4.0f * dt)) * (0.20f - smooth_speed_);
+        smooth_speed_    += (1.0f - std::exp(-4.0f * dt)) * (5.5f - smooth_speed_);
         vector_.is_onset = false;
     } else {
         // 2.1 Dilatación Elástica de Cavidad / Olas (Sub-Bass potente de Stream A + Stream B)
@@ -221,26 +221,26 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
 
         vector_.is_onset = audio_state.stream_b.is_onset;
 
-        // 2.7 Velocidad Cinemática (Amplio rango dinámico: crucero tranquilo ~3.0 m/s hasta drop/speedcore sprint 25.0 - 45.0 m/s)
+        // 2.7 Velocidad Cinemática (Amplio rango dinámico: crucero ágil ~6.5 - 8.5 m/s hasta drop/speedcore sprint 30.0 - 45.0 m/s)
         float bpm_factor = std::clamp((vector_.bpm - 60.0f) / 140.0f, 0.0f, 1.0f);
         float genre_kinetic_boost = 
             vector_.weight_dubstep * 24.0f + 
             vector_.weight_metal   * 22.0f + 
-            vector_.weight_cyber   * 12.0f;
+            vector_.weight_cyber   * 14.0f;
 
         float kinetic_intensity = (raw_energy * 0.70f + (vector_.is_onset ? 0.30f : 0.0f)) * (0.70f + 0.50f * bpm_factor);
-        float target_speed = 2.8f + genre_kinetic_boost * kinetic_intensity + raw_energy * 10.0f;
+        float target_speed = 7.5f + genre_kinetic_boost * kinetic_intensity + raw_energy * 12.0f;
         if (vector_.is_onset && raw_energy > 0.35f) {
-            target_speed += 10.0f * (vector_.weight_dubstep + vector_.weight_metal + 0.3f);
+            target_speed += 12.0f * (vector_.weight_dubstep + vector_.weight_metal + 0.3f);
         }
         // Instantaneous gear-shift kinetic boost on sudden tempo / rhythm drop
         if (gear_shift_impulse_ > 0.15f) {
-            target_speed += gear_shift_impulse_ * 12.0f;
+            target_speed += gear_shift_impulse_ * 14.0f;
         }
-        target_speed = std::clamp(target_speed, 2.5f, 45.0f);
+        target_speed = std::clamp(target_speed, 6.8f, 45.0f);
 
         // Dynamic speed adaptation rate: snaps quickly during gear shift transitions
-        float speed_rate = (gear_shift_impulse_ > 0.20f) ? 22.0f : 6.0f;
+        float speed_rate = (gear_shift_impulse_ > 0.20f) ? 22.0f : 7.0f;
         smooth_speed_ += (1.0f - std::exp(-speed_rate * dt)) * (target_speed - smooth_speed_);
     }
 

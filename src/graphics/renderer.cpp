@@ -360,8 +360,8 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     float dyn_ca = tuners_.chromatic_aberration * (0.40f + 1.10f * semantic.surface_ripple + 0.50f * semantic.arousal);
     if (semantic.is_silent) dyn_ca = tuners_.chromatic_aberration * 0.20f;
 
-    float speed_factor = std::clamp((semantic.speed_forward - 6.0f) / 20.0f, 0.0f, 1.0f);
-    float dyn_speed_lines = speed_factor * 0.75f + (semantic.is_onset && semantic.speed_forward > 12.0f ? 0.35f : 0.0f);
+    float speed_factor = std::clamp((semantic.speed_forward - 10.0f) / 24.0f, 0.0f, 1.0f);
+    float dyn_speed_lines = speed_factor * 0.75f + (semantic.is_onset && semantic.speed_forward > 18.0f ? 0.35f : 0.0f);
     dyn_speed_lines = std::clamp(dyn_speed_lines, 0.0f, 1.0f) * tuners_.speed_multiplier;
     if (semantic.is_silent) dyn_speed_lines = 0.0f;
 

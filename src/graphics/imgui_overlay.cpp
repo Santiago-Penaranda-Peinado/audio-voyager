@@ -175,14 +175,14 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
 
         // 7. GPU Sparks & Kinetic Streaks (Supersonic Road Embers)
         if (ImGui::CollapsingHeader("⚡ KINETIC ROAD SPARKS & FRICTION EMBERS", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::Checkbox("Enable Kinetic Sparks", &tuners.enable_particles);
+            ImGui::Checkbox("Enable Legacy 2D Point Sparks (Retired in Phase 2)", &tuners.enable_particles);
             if (tuners.enable_particles) {
                 ImGui::SliderFloat("Spark Size", &tuners.particle_size, 0.20f, 3.00f, "%.2fx");
                 ImGui::SliderFloat("Spark Opacity / Heat", &tuners.particle_opacity, 0.10f, 2.50f, "%.2fx");
-                ImGui::Text("Aesthetic: Supersonic Road Friction Sparks (Chispas F1 / Bottoming Embers)");
+                ImGui::Text("Aesthetic: Supersonic Road Friction Sparks (Legacy Point Sprites)");
                 ImGui::Text("Sparks spray dynamically from road & curbs on acceleration and bass drops.");
             } else {
-                ImGui::TextColored(ImVec4(0.6f, 0.6f, 0.6f, 1.0f), "Kinetic Sparks: DISABLED (Pure SDF Raymarching mode)");
+                ImGui::TextColored(ImVec4(0.4f, 0.85f, 0.5f, 1.0f), "Legacy 2D Sparks: RETIRED (Replaced by Authentic 3D Procedural Architecture in SDF)");
             }
             ImGui::Separator();
         }

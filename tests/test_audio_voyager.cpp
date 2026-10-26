@@ -155,6 +155,60 @@ float test_sdf_dubstep(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids,
     return smax(d_dub_geom, -d_flight_corridor, 0.40f);
 }
 
+// =============================================================================
+// PHASE 2: Procedural 3D Architectural Elements inside Raymarching SDF
+// =============================================================================
+float test_sdf_architecture(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float ripple, float time) {
+    glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
+    glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
+
+    // 1. Neon Rhythmic Gate Portals / Monumental Arches recurring every 16m
+    float gate_spacing = 16.0f;
+    float gate_z = std::fmod(p.z + 8.0f, gate_spacing) - 8.0f;
+    float r_gate = 2.65f + dilation * 0.50f + ripple * 0.30f;
+    float arch_depth = 0.32f + ripple * 0.12f;
+    float r_xy = glm::length(p_rel);
+    float arch_torus = std::max(std::abs(r_xy - r_gate) - 0.20f, std::abs(gate_z) - arch_depth);
+    glm::vec2 p_pillar(std::abs(p_rel.x) - r_gate, p_rel.y + 1.0f);
+    float arch_pillars = std::max(std::max(std::abs(p_pillar.x) - 0.24f, std::abs(p_pillar.y) - 1.4f), std::abs(gate_z) - arch_depth);
+    float d_gate_arch = std::min(arch_torus, arch_pillars);
+
+    // 2. Audio-Reactive Floating Equalizer Monoliths / Totems recurring every 6m
+    float totem_spacing = 6.0f;
+    float cell_z = std::floor((p.z + 3.0f) / totem_spacing);
+    float totem_z = std::fmod(p.z + 3.0f, totem_spacing) - 3.0f;
+    float wave_phase = cell_z * 0.75f + time * 3.5f;
+    float totem_h = 1.1f + 2.2f * (dilation * 0.65f + mids * 0.75f) * (0.65f + 0.35f * std::sin(wave_phase));
+    float bevel = 0.04f + 0.04f * dilation;
+    glm::vec3 q_totem(std::abs(p_rel.x) - (3.45f + dilation * 0.35f), p_rel.y - (totem_h * 0.5f - 1.1f), totem_z);
+    glm::vec3 b_totem = glm::vec3(0.30f, totem_h * 0.5f, 0.30f) - bevel;
+    glm::vec3 d_box = glm::abs(q_totem) - b_totem;
+    float d_monolith = glm::length(glm::max(d_box, glm::vec3(0.0f))) + std::min(std::max(d_box.x, std::max(d_box.y, d_box.z)), 0.0f) - bevel;
+    float eq_stripes = std::abs(std::sin(q_totem.y * 6.0f)) * 0.03f;
+    d_monolith += eq_stripes;
+
+    // 3. 3D Extruded Holographic Energy Rails / Guardrails along spline C(z)
+    float rail_x_offset = 2.22f + dilation * 0.15f;
+    float rail_wave = std::sin(p.z * 0.45f + time * 3.2f) * (0.12f + mids * 0.16f) + std::sin(p.z * 1.4f - time * 9.0f) * (ripple * 0.12f);
+    float rail_y = -1.15f + rail_wave;
+    float r_rail = 0.10f + mids * 0.03f;
+    float d_rail_left  = glm::length(glm::vec2(p_rel.x + rail_x_offset, p_rel.y - rail_y)) - r_rail;
+    float d_rail_right = glm::length(glm::vec2(p_rel.x - rail_x_offset, p_rel.y - rail_y)) - r_rail;
+    float d_rails_lower = std::min(d_rail_left, d_rail_right);
+
+    float rail_high_y = 1.35f + 0.08f * std::cos(p.z * 0.40f + time * 2.2f);
+    float d_rail_high_left  = glm::length(glm::vec2(p_rel.x + (rail_x_offset + 0.30f), p_rel.y - rail_high_y)) - 0.065f;
+    float d_rail_high_right = glm::length(glm::vec2(p_rel.x - (rail_x_offset + 0.30f), p_rel.y - rail_high_y)) - 0.065f;
+    float d_rails_upper = std::min(d_rail_high_left, d_rail_high_right);
+
+    float pylon_z = std::fmod(p.z + 2.0f, 4.0f) - 2.0f;
+    glm::vec2 p_strut(std::abs(p_rel.x) - (rail_x_offset + 0.45f), p_rel.y - (-1.15f));
+    float d_strut = std::max(std::max(std::abs(p_strut.x) - 0.50f, std::abs(p_strut.y) - 0.05f), std::abs(pylon_z) - 0.07f);
+    float d_rails = std::min(std::min(d_rails_lower, d_rails_upper), d_strut);
+
+    return std::min(d_gate_arch, std::min(d_monolith, d_rails));
+}
+
 float test_map(glm::vec3 p, glm::vec3 cam_p, glm::vec4 weights, float dilation, float mids, float ripple, float is_silent, float time) {
     float d_l = test_sdf_liquid(p, cam_p, dilation, mids, is_silent, time);
     float d_m = test_sdf_metal(p, cam_p, dilation, mids, time);
@@ -169,12 +223,16 @@ float test_map(glm::vec3 p, glm::vec3 cam_p, glm::vec4 weights, float dilation, 
         d_interp += shock;
     }
 
+    // Phase 2: Merge procedural 3D architectural elements
+    float d_arch = test_sdf_architecture(p, cam_p, dilation, mids, ripple, time);
+    float d_world = std::min(d_interp, d_arch);
+
     glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
     glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
     float d_track_corridor = glm::length(p_rel) - (2.2f + dilation * 0.2f);
     float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
     float d_global_corridor = std::min(d_track_corridor, d_cam_corridor);
-    return smax(d_interp, -d_global_corridor, 0.45f);
+    return smax(d_world, -d_global_corridor, 0.45f);
 }
 
 // -----------------------------------------------------------------------------
@@ -405,7 +463,7 @@ void test_dynamic_kinematics_and_speed() {
     brain::SemanticBrain brain;
     core::PhysicsAudioState state{};
 
-    // 3.1 Quiet / Calm Jazz passage: speed must be relaxed ~2.5 - 3.5 m/s
+    // 3.1 Quiet / Calm Jazz passage: elevated cruising speed ~6.5 - 8.5 m/s per user recommendation
     state.stream_a.rms = 0.05f;
     state.stream_b.energy = 0.04f;
     state.stream_b.dissonance = 0.04f;
@@ -416,9 +474,9 @@ void test_dynamic_kinematics_and_speed() {
     }
     float calm_speed = brain.get_semantic_vector().speed_forward;
     std::cout << "  -> Calm Passage Cruising Speed: " << calm_speed << " m/s" << std::endl;
-    assert(calm_speed >= 2.0f && calm_speed <= 4.0f);
+    assert(calm_speed >= 6.0f && calm_speed <= 9.0f);
 
-    // 3.2 Explosive Heavy Metal / Dubstep Drop: speed must surge to 25.0 - 45.0 m/s sprint!
+    // 3.2 Explosive Heavy Metal / Dubstep Drop: speed must surge to 28.0 - 45.0 m/s sprint!
     state.stream_a.rms = 0.45f;
     state.stream_b.energy = 0.50f;
     state.stream_b.is_onset = true;
@@ -429,7 +487,7 @@ void test_dynamic_kinematics_and_speed() {
     }
     float drop_speed = brain.get_semantic_vector().speed_forward;
     std::cout << "  -> Intense Metal/Drop Cruising Speed: " << drop_speed << " m/s\n";
-    assert(drop_speed >= 25.0f && drop_speed <= 45.0f);
+    assert(drop_speed >= 28.0f && drop_speed <= 45.0f);
     assert(drop_speed > calm_speed + 20.0f);
 
     // 3.3 Fast Transient Rhythm / Gear Shift Detection:
@@ -443,7 +501,20 @@ void test_dynamic_kinematics_and_speed() {
     std::cout << "  -> Gear Shift Impulse on Sudden Drop: " << surge_pulse << "\n";
     assert(surge_pulse > 0.40f);
 
-    std::cout << "  [PASS] Speed range is highly dynamic (" << calm_speed << " -> " << drop_speed << " m/s) and gear-shift responds instantly!\n\n";
+    // 3.4 Silence / Quiescence Graceful Glide:
+    // Speed must remain brisk (~5.0 - 6.0 m/s) and never drop to sluggish walking crawl (< 4.0 m/s)
+    core::PhysicsAudioState silent_state{};
+    silent_state.stream_a.rms = 0.0f;
+    silent_state.stream_b.rms = 0.0f;
+    silent_state.stream_b.energy = 0.0f;
+    for (int i = 0; i < 150; ++i) {
+        brain.update(silent_state, 0.02f);
+    }
+    float silent_speed = brain.get_semantic_vector().speed_forward;
+    std::cout << "  -> Silence / Quiescence Glide Speed: " << silent_speed << " m/s\n";
+    assert(silent_speed >= 4.5f && silent_speed <= 6.5f);
+
+    std::cout << "  [PASS] Speed range is highly dynamic (" << calm_speed << " -> " << drop_speed << " m/s, silence=" << silent_speed << " m/s) and gear-shift responds instantly!\n\n";
 }
 
 // -----------------------------------------------------------------------------
@@ -1153,8 +1224,8 @@ void test_particle_tuners_and_lighting_coherence() {
     std::cout << "[TEST 16] Testing Particle Tuners & Lighting Coherence...\n";
 
     core::PhysicsTuners tuners;
-    // 16.1 Particle Tuners Contract
-    assert(tuners.enable_particles == true);
+    // 16.1 Particle Tuners Contract (Cleanly retired by default in Phase 2 in favor of authentic 3D procedural architecture)
+    assert(tuners.enable_particles == false);
     assert(tuners.particle_size == 1.0f);
     assert(tuners.particle_opacity == 0.70f);
 
@@ -1435,6 +1506,105 @@ void test_reactive_micro_details_at_100_percent() {
     std::cout << "  [PASS] High-frequency micro-details remain razor-sharp and accented at 100% speed and saturation!\n\n";
 }
 
+// -----------------------------------------------------------------------------
+// Test 20: Procedural 3D Architectural Elements & Audio Reactivity (Phase 2)
+// -----------------------------------------------------------------------------
+void test_procedural_3d_architectural_elements() {
+    std::cout << "[TEST 20] Testing Procedural 3D Architectural Elements inside Raymarching SDF (Phase 2)...\n";
+
+    glm::vec3 cam_p(0.0f, 2.7f, 32.0f);
+    float time = 2.5f;
+
+    // 20.1 Neon Rhythmic Gate Portals / Monumental Arches Recurrence & Audio Dilation
+    // Arches recur every 16m along spline track (centers at z = 0, 16, 32, 48m)
+    for (float z : {0.0f, 16.0f, 32.0f, 48.0f}) {
+        glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(z);
+        // At portal arch apex (y = track_c.y + 2.65, x = track_c.x)
+        glm::vec3 p_apex(track_c.x, track_c.y + 2.65f, z);
+        float d_calm = test_sdf_architecture(p_apex, cam_p, 0.0f, 0.0f, 0.0f, time);
+        // Under drop / kick drum excitation, gate dilates and expands outwardly
+        float d_drop = test_sdf_architecture(p_apex, cam_p, 1.0f, 0.5f, 0.8f, time);
+        std::cout << "  -> Gate Portal at z=" << z << "m: Calm apex distance=" << d_calm << "m | Dilated=" << d_drop << "m\n";
+        assert(std::abs(d_calm) < 0.25f);
+        assert(d_drop > d_calm + 0.30f);
+    }
+
+    // 20.1b Monumental Arch Support Pillars Anchor to Ground Foundation
+    for (float z : {0.0f, 16.0f, 32.0f, 48.0f}) {
+        glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(z);
+        // Left and right support pillar test points at ground level (y = track_c.y - 1.2m)
+        glm::vec3 p_pillar_l(track_c.x - 2.65f, track_c.y - 1.20f, z);
+        glm::vec3 p_pillar_r(track_c.x + 2.65f, track_c.y - 1.20f, z);
+        float d_pil_l = test_sdf_architecture(p_pillar_l, cam_p, 0.0f, 0.0f, 0.0f, time);
+        float d_pil_r = test_sdf_architecture(p_pillar_r, cam_p, 0.0f, 0.0f, 0.0f, time);
+        assert(std::abs(d_pil_l) < 0.25f);
+        assert(std::abs(d_pil_r) < 0.25f);
+
+        // 20.1c Sky Clearance: Arches MUST NOT leak infinite geometry columns into the sky!
+        glm::vec3 p_sky_l(track_c.x - 2.65f, track_c.y + 6.0f, z);
+        glm::vec3 p_sky_r(track_c.x + 2.65f, track_c.y + 6.0f, z);
+        float d_sky_l = test_sdf_architecture(p_sky_l, cam_p, 0.0f, 0.0f, 0.0f, time);
+        float d_sky_r = test_sdf_architecture(p_sky_r, cam_p, 0.0f, 0.0f, 0.0f, time);
+        assert(d_sky_l >= 2.5f);
+        assert(d_sky_r >= 2.5f);
+    }
+    std::cout << "  -> Gate Portals anchor to ground foundations and have zero sky leak!\n";
+
+    // 20.2 Audio-Reactive Floating Equalizer Monoliths / Totems
+    // Monoliths flank the track margins at abs(p_rel.x) ~ 3.45m every 6m (centers at z = 0, 6, 12, 18m)
+    for (float z : {0.0f, 6.0f, 12.0f, 18.0f}) {
+        glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(z);
+        // Left and right totem test points
+        glm::vec3 p_left(track_c.x - 3.45f, track_c.y + 0.2f, z);
+        glm::vec3 p_right(track_c.x + 3.45f, track_c.y + 0.2f, z);
+        float d_mon_left = test_sdf_architecture(p_left, cam_p, 0.5f, 0.5f, 0.0f, time);
+        float d_mon_right = test_sdf_architecture(p_right, cam_p, 0.5f, 0.5f, 0.0f, time);
+        std::cout << "  -> Flanking Totems at z=" << z << "m: Left dist=" << d_mon_left << "m | Right dist=" << d_mon_right << "m\n";
+        assert(std::abs(d_mon_left) < 0.25f);
+        assert(std::abs(d_mon_right) < 0.25f);
+
+        // 20.2b Totem Sky Clearance: Monoliths must be finite in height (clean sky above totem)
+        glm::vec3 p_totem_sky(track_c.x + 3.45f, track_c.y + 5.0f, z);
+        float d_totem_sky = test_sdf_architecture(p_totem_sky, cam_p, 0.5f, 0.5f, 0.0f, time);
+        assert(d_totem_sky >= 1.5f);
+    }
+
+    // 20.3 3D Extruded Holographic Energy Rails / Guardrails along spline C(z)
+    // Rails run continuously along entire track length flanking roadway at abs(x_rel) ~ 2.22m
+    for (float z = 10.0f; z <= 100.0f; z += 15.0f) {
+        glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(z);
+        // Lower roadway rail center test point
+        float rail_wave = std::sin(z * 0.45f + time * 3.2f) * 0.12f;
+        glm::vec3 p_rail_l(track_c.x - 2.22f, track_c.y - 1.15f + rail_wave, z);
+        glm::vec3 p_rail_r(track_c.x + 2.22f, track_c.y - 1.15f + rail_wave, z);
+        float d_rail_l = test_sdf_architecture(p_rail_l, cam_p, 0.0f, 0.0f, 0.0f, time);
+        float d_rail_r = test_sdf_architecture(p_rail_r, cam_p, 0.0f, 0.0f, 0.0f, time);
+        assert(std::abs(d_rail_l) < 0.15f);
+        assert(std::abs(d_rail_r) < 0.15f);
+
+        // 20.3b Upper Holographic Stabilizer Conduit test point
+        float rail_high_y = 1.35f + 0.08f * std::cos(z * 0.40f + time * 2.2f);
+        glm::vec3 p_rail_hi_l(track_c.x - 2.52f, track_c.y + rail_high_y, z);
+        glm::vec3 p_rail_hi_r(track_c.x + 2.52f, track_c.y + rail_high_y, z);
+        float d_hi_l = test_sdf_architecture(p_rail_hi_l, cam_p, 0.0f, 0.0f, 0.0f, time);
+        float d_hi_r = test_sdf_architecture(p_rail_hi_r, cam_p, 0.0f, 0.0f, 0.0f, time);
+        assert(std::abs(d_hi_l) < 0.15f);
+        assert(std::abs(d_hi_r) < 0.15f);
+    }
+    std::cout << "  -> 3D Extruded Energy Rails (Lower & Upper) continuously validated along [10m, 100m] track with zero gaps!\n";
+
+    // 20.4 Absolute Camera Clearance Guarantee with Unified Global map()
+    for (float z = 0.0f; z <= 300.0f; z += 10.0f) {
+        glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(z);
+        glm::vec3 c_pos(track_c.x, track_c.y + 0.8f, z);
+        glm::vec4 weights(0.25f, 0.25f, 0.25f, 0.25f);
+        float d = test_map(c_pos, c_pos, weights, 1.0f, 1.0f, 0.8f, 0.0f, time);
+        assert(d >= 2.0f);
+    }
+    std::cout << "  -> Camera flight corridor clearance strictly validated (d >= 2.0m) through all 3D architectural elements!\n";
+    std::cout << "  [PASS] Procedural 3D Architectural Elements (Gates, Totems, Rails) fully operational and collision-safe!\n\n";
+}
+
 int main() {
     std::cout << "=================================================================\n";
     std::cout << "   AUDIO-VOYAGER SYSTEM INTEGRITY & ARCHITECTURAL VERIFICATION   \n";
@@ -1459,6 +1629,7 @@ int main() {
     test_second_order_spring_damper_suspension();
     test_world_space_spline_track_continuity();
     test_reactive_micro_details_at_100_percent();
+    test_procedural_3d_architectural_elements();
 
     std::cout << "=================================================================\n";
     std::cout << "   ALL VERIFICATION TESTS PASSED SUCCESSFULLY! (100% HEALTHY)    \n";

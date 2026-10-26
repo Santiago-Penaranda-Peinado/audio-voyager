@@ -50,7 +50,7 @@ private:
     float smooth_air_{0.0f};
     float smooth_emission_{1.0f};
     float smooth_centroid_{0.5f};
-    float smooth_speed_{1.3f};
+    float smooth_speed_{7.5f};
 
     // Fast transient rhythm and tempo gear-shift reactivity
     float prev_energy_{0.0f};

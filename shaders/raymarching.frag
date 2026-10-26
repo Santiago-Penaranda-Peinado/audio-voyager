@@ -226,7 +226,64 @@ float sdf_dubstep(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
 }
 
 // =============================================================================
-// 4-Way Barycentric Distance Map
+// PHASE 2: Procedural 3D Architectural Elements inside Raymarching SDF
+// 1. Neon Rhythmic Gate Portals / Monumental Arches (every 16m)
+// 2. Audio-Reactive Floating Equalizer Monoliths / Totems (every 6m)
+// 3. 3D Extruded Holographic Energy Rails / Guardrails along spline C(z)
+// =============================================================================
+float sdf_architecture(vec3 p, vec3 cam_p, float dilation, float mids, float ripple, float time) {
+    vec2 track_c = get_track_spline(p.z);
+    vec2 p_rel = p.xy - track_c;
+
+    // 1. Neon Rhythmic Gate Portals / Monumental Arches recurring every 16m
+    float gate_spacing = 16.0;
+    float gate_z = mod(p.z + 8.0, gate_spacing) - 8.0;
+    float r_gate = 2.65 + dilation * 0.50 + ripple * 0.30;
+    float arch_depth = 0.32 + ripple * 0.12;
+    float r_xy = length(p_rel);
+    float arch_torus = max(abs(r_xy - r_gate) - 0.20, abs(gate_z) - arch_depth);
+    vec2 p_pillar = vec2(abs(p_rel.x) - r_gate, p_rel.y + 1.0);
+    float arch_pillars = max(max(abs(p_pillar.x) - 0.24, abs(p_pillar.y) - 1.4), abs(gate_z) - arch_depth);
+    float d_gate_arch = min(arch_torus, arch_pillars);
+
+    // 2. Audio-Reactive Floating Equalizer Monoliths / Totems recurring every 6m
+    float totem_spacing = 6.0;
+    float cell_z = floor((p.z + 3.0) / totem_spacing);
+    float totem_z = mod(p.z + 3.0, totem_spacing) - 3.0;
+    float wave_phase = cell_z * 0.75 + time * 3.5;
+    float totem_h = 1.1 + 2.2 * (dilation * 0.65 + mids * 0.75) * (0.65 + 0.35 * sin(wave_phase));
+    float bevel = 0.04 + 0.04 * dilation;
+    vec3 q_totem = vec3(abs(p_rel.x) - (3.45 + dilation * 0.35), p_rel.y - (totem_h * 0.5 - 1.1), totem_z);
+    vec3 b_totem = vec3(0.30, totem_h * 0.5, 0.30) - bevel;
+    vec3 d_box = abs(q_totem) - b_totem;
+    float d_monolith = length(max(d_box, vec3(0.0))) + min(max(d_box.x, max(d_box.y, d_box.z)), 0.0) - bevel;
+    float eq_stripes = abs(sin(q_totem.y * 6.0)) * 0.03;
+    d_monolith += eq_stripes;
+
+    // 3. 3D Extruded Holographic Energy Rails / Guardrails along spline C(z)
+    float rail_x_offset = 2.22 + dilation * 0.15;
+    float rail_wave = sin(p.z * 0.45 + time * 3.2) * (0.12 + mids * 0.16) + sin(p.z * 1.4 - time * 9.0) * (ripple * 0.12);
+    float rail_y = -1.15 + rail_wave;
+    float r_rail = 0.10 + mids * 0.03;
+    float d_rail_left  = length(vec2(p_rel.x + rail_x_offset, p_rel.y - rail_y)) - r_rail;
+    float d_rail_right = length(vec2(p_rel.x - rail_x_offset, p_rel.y - rail_y)) - r_rail;
+    float d_rails_lower = min(d_rail_left, d_rail_right);
+
+    float rail_high_y = 1.35 + 0.08 * cos(p.z * 0.40 + time * 2.2);
+    float d_rail_high_left  = length(vec2(p_rel.x + (rail_x_offset + 0.30), p_rel.y - rail_high_y)) - 0.065;
+    float d_rail_high_right = length(vec2(p_rel.x - (rail_x_offset + 0.30), p_rel.y - rail_high_y)) - 0.065;
+    float d_rails_upper = min(d_rail_high_left, d_rail_high_right);
+
+    float pylon_z = mod(p.z + 2.0, 4.0) - 2.0;
+    vec2 p_strut = vec2(abs(p_rel.x) - (rail_x_offset + 0.45), p_rel.y - (-1.15));
+    float d_strut = max(max(abs(p_strut.x) - 0.50, abs(p_strut.y) - 0.05), abs(pylon_z) - 0.07);
+    float d_rails = min(min(d_rails_lower, d_rails_upper), d_strut);
+
+    return min(d_gate_arch, min(d_monolith, d_rails));
+}
+
+// =============================================================================
+// 4-Way Barycentric Distance Map with Unified 3D Procedural Architecture
 // =============================================================================
 float map(vec3 p) {
     float time = u_resolution_time.z;
@@ -267,14 +324,18 @@ float map(vec3 p) {
         d_interpolated += shock;
     }
 
+    // Phase 2: Merge procedural 3D architectural elements
+    float d_architecture = sdf_architecture(p, cam_p, dilation, mids, ripple, time);
+    float d_world = min(d_interpolated, d_architecture);
+
     // GUARANTEED Safe Flight Corridor across all biomes & blend states:
     // Guarantees camera center and near-frustum can NEVER clip or black out under any combination
     float d_track_corridor = length(p_rel) - (2.2 + dilation * 0.2);
     float d_cam_corridor   = length(p.xy - cam_p.xy) - (2.2 + dilation * 0.2);
     float d_global_corridor = min(d_track_corridor, d_cam_corridor);
-    d_interpolated = smax(d_interpolated, -d_global_corridor, 0.45);
+    d_world = smax(d_world, -d_global_corridor, 0.45);
 
-    return d_interpolated;
+    return d_world;
 }
 
 // Tetrahedron normal computation
@@ -553,8 +614,46 @@ void main() {
         float portal_edge = smoothstep(0.25, 0.0, abs(r_dist - (2.7 + dilation * 0.5)));
         float sonic_portal = pulse_ring * portal_edge * (0.6 + ripple * 2.2);
 
-        // Emissive light from track features, veins and sonic pulse portals
-        vec3 emissive = accent_color * ((track_glow * 1.8 + sonic_portal * 2.0)) * (1.0 - is_silent * 0.5);
+        // Phase 2: 3D Procedural Architecture Neon Illumination & Shading
+        // 1. Neon Gate Portals / Monumental Arches Shading
+        float gate_z_dist = abs(mod(p.z + 8.0, 16.0) - 8.0);
+        float is_gate = smoothstep(0.40, 0.04, gate_z_dist);
+        float gate_edge = smoothstep(0.24, 0.02, abs(length(track_offset) - (2.65 + dilation * 0.50)));
+        float pillar_edge = smoothstep(0.24, 0.02, abs(abs(track_offset.x) - (2.65 + dilation * 0.50))) * step(-2.4, track_offset.y) * step(track_offset.y, 0.5);
+        float arch_structure = max(gate_edge, pillar_edge);
+        vec3 gate_neon = accent_color * (is_gate * arch_structure * 4.2 * (1.0 + ripple * 2.0 + emission_pulse * 1.4));
+
+        // 2. 3D Extruded Energy Rails Shading (Both Lower Roadway Rails & Upper Holographic Conduits)
+        float rail_wave_sh = sin(p.z * 0.45 + time * 3.2) * (0.12 + melodic_mids * 0.16) + sin(p.z * 1.4 - time * 9.0) * (ripple * 0.12);
+        float rail_y_sh = -1.15 + rail_wave_sh;
+        float rail_x_cur = 2.22 + dilation * 0.15;
+        float rail_dist_l = length(vec2(track_offset.x + rail_x_cur, track_offset.y - rail_y_sh));
+        float rail_dist_r = length(vec2(track_offset.x - rail_x_cur, track_offset.y - rail_y_sh));
+        float rail_high_y_sh = 1.35 + 0.08 * cos(p.z * 0.40 + time * 2.2);
+        float rail_high_dist_l = length(vec2(track_offset.x + (rail_x_cur + 0.30), track_offset.y - rail_high_y_sh));
+        float rail_high_dist_r = length(vec2(track_offset.x - (rail_x_cur + 0.30), track_offset.y - rail_high_y_sh));
+        float min_rail_dist = min(min(rail_dist_l, rail_dist_r), min(rail_high_dist_l, rail_high_dist_r));
+        float is_rail = smoothstep(0.16, 0.03, min_rail_dist);
+        float rail_pulse = smoothstep(0.35, 0.95, sin(p.z * 2.5 - time * 14.0));
+        vec3 rail_neon = mix(synesthetic_color, accent_color, 0.70) * (is_rail * (2.6 + rail_pulse * 2.2 + melodic_mids * 1.4));
+
+        // 3. Floating Equalizer Monoliths Shading (Strictly Y-Bounded VU Pillars)
+        float totem_z_dist = abs(mod(p.z + 3.0, 6.0) - 3.0);
+        float totem_x_dist = abs(abs(track_offset.x) - (3.45 + dilation * 0.35));
+        float cell_z_sh = floor((p.z + 3.0) / 6.0);
+        float totem_h_sh = 1.1 + 2.2 * (dilation * 0.65 + melodic_mids * 0.75) * (0.65 + 0.35 * sin(cell_z_sh * 0.75 + time * 3.5));
+        float totem_y_top = totem_h_sh - 1.1;
+        float is_totem_y = step(-1.15, track_offset.y) * step(track_offset.y, totem_y_top + 0.05);
+        float is_totem = smoothstep(0.40, 0.05, totem_x_dist) * step(totem_z_dist, 0.45) * is_totem_y;
+        float bar_frac = clamp((track_offset.y + 1.1) / max(totem_h_sh, 0.1), 0.0, 1.0);
+        vec3 totem_bar_col = mix(synesthetic_color, accent_color, bar_frac);
+        float bar_grid = smoothstep(0.15, 0.85, sin(track_offset.y * 12.0));
+        vec3 totem_neon = totem_bar_col * (is_totem * bar_grid * (2.4 + dilation * 1.8 + melodic_mids * 1.2));
+
+        vec3 arch_emissive = (gate_neon + rail_neon + totem_neon) * (1.0 - is_silent * 0.6);
+
+        // Emissive light from track features, veins, sonic pulse portals, and 3D architecture
+        vec3 emissive = accent_color * ((track_glow * 1.8 + sonic_portal * 2.0)) * (1.0 - is_silent * 0.5) + arch_emissive;
 
         // 2. High-Frequency Harmonic Vein Pulses (Razor-Sharp Veins)
         float vein_phase = p.z * 8.0 + p.x * 5.0 + sin(p.y * 10.0);

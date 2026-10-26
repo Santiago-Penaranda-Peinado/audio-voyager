@@ -108,7 +108,7 @@ private:
     float fov_radians_{glm::radians(68.0f)};
 
     float smooth_roll_{0.0f};
-    float smooth_speed_{3.0f};
+    float smooth_speed_{7.5f};
     float trauma_{0.0f};
 
     // Onset edge trigger and refractory re-arm state
