@@ -4,6 +4,10 @@
 
 `audio-voyager` is a native, high-performance C++20 audio-reactive generative engine designed for real-time visualization through Signed Distance Field (SDF) raymarching, embedded neural spectral inference, and modern OpenGL 4.5 Core Profile graphics.
 
+> [!IMPORTANT]
+> **Complete Technical Documentation**: For the exhaustive engineering manual detailing all mathematical formulations, DSP algorithms, 2nd-order physics equations, and guidelines for extending the engine, refer to:
+> 📖 [docs/ARCHITECTURE_AND_SYSTEMS_MANUAL.md](docs/ARCHITECTURE_AND_SYSTEMS_MANUAL.md)
+
 ---
 
 ## 1. Architectural Overview
@@ -11,93 +15,105 @@
 The engine operates on a strict temporal and structural decoupling principle, dividing analysis and rendering into two complementary domains:
 
 ```
-                               +---------------------------------------+
-                               |          Audio Input Stream           |
-                               |    (WASAPI Loopback / ALSA / PCM)     |
-                               +-------------------+-------------------+
-                                                   |
-                                                   v
-                         +-------------------------+-------------------------+
-                         |                                                   |
-                         v                                                   v
-           +---------------------------+                       +---------------------------+
-           |         THE MIND          |                       |        THE MUSCLE         |
-           | Low-Frequency Domain (~1Hz) |                     | High-Frequency Domain (144Hz) |
-           |  Embedded Neural MLP      |                       |    Real-Time DSP Worker   |
-           +-------------+-------------+                       +-------------+-------------+
-                         |                                                   |
-                         |  Barycentric Biome Weights                        |  Kinetic Excitation
-                         |  (Liquid / Crystal / Cyber)                       |  (Dilation, Shockwaves,
-                         |  Affective Coordinates                            |   Volumetric HDR Pulse)
-                         |                                                   |
-                         +-------------------------+-------------------------+
-                                                   |
-                                                   v
-                               +---------------------------------------+
-                               |     Uniform Buffer Object (std140)    |
-                               +-------------------+-------------------+
-                                                   |
-                                                   v
-                               +---------------------------------------+
-                               |       GPU SDF Raymarching Core        |
-                               |   Trilateral Barycentric Biomes       |
-                               |      HDR Dual-Pass Optical Bloom      |
-                               |    ACES Filmic Tone Mapping (1080p)   |
-                               +---------------------------------------+
+                              +---------------------------------------+
+                              |          Audio Input Stream           |
+                              |    (WASAPI Loopback / ALSA / PCM)     |
+                              +-------------------+-------------------+
+                                                  |
+                                                  v
+                        +-------------------------+-------------------------+
+                        |                                                   |
+                        v                                                   v
+          +---------------------------+                       +---------------------------+
+          |         THE MIND          |                       |        THE MUSCLE         |
+          | Low-Frequency Domain (~1Hz) |                     | High-Frequency Domain (144Hz) |
+          |  Waterfall 2D & Neural ML |                       |    Real-Time DSP Worker   |
+          +-------------+-------------+                       +-------------+-------------+
+                        |                                                   |
+                        |  Barycentric Biome Weights                        |  Kinetic Excitation
+                        |  (5 Biomes + Affective Space)                     |  (Dilation, Onset Impulse,
+                        |  Autocorrelation BPM & Tempo                      |   Harmonic Veins, Shocks)
+                        |                                                   |
+                        +-------------------------+-------------------------+
+                                                  |
+                                                  v
+                              +---------------------------------------+
+                              |     Autonomous Art Director Engine    |
+                              |   2nd-Order Spring-Mass-Damper Model  |
+                              |   World-Space Spline Track C(z)       |
+                              +-------------------+-------------------+
+                                                  |
+                                                  v
+                              +---------------------------------------+
+                              |     Uniform Buffer Object (std140)    |
+                              +-------------------+-------------------+
+                                                  |
+                                                  v
+                              +---------------------------------------+
+                              |       GPU SDF Raymarching Core        |
+                              |      5 Branching Procedural Biomes    |
+                              |     Procedural 3D Neon Architecture   |
+                              |    HDR Dual-Pass Gaussian Bloom & ACES|
+                              +---------------------------------------+
 ```
 
 ---
 
 ## 2. Core Subsystems
 
-### 2.1 The Mind: Embedded Neural Semantic Classifier (`SemanticClassifierML`)
-- **Feature Extraction**: 28-dimensional spectral vector comprising a 24-band Mel-frequency filterbank energy distribution, spectral centroid normalized ratio, inharmonicity/dissonance index, and transient onset novelty density.
-- **Inference Model**: Multi-Layer Perceptron (MLP) with Gaussian Error Linear Unit (GELU) non-linearities and numerically stabilized Softmax normalization:
-  $$\mathbf{w}_{\text{target}} = \text{Softmax}\left(\mathbf{W}_3 \cdot \text{GELU}(\mathbf{W}_2 \cdot \text{GELU}(\mathbf{W}_1 \mathbf{x} + \mathbf{b}_1) + \mathbf{b}_2) + \mathbf{b}_3\right)$$
-- **Temporal Integration**: Evaluated at $1.0\,\text{Hz}$ and integrated through a higher-order leaky integrator ($\tau \approx 4.0\,\text{s}$), ensuring structural biome transitions occur strictly across musical phrase boundaries rather than frame-by-frame fluctuations.
+### 2.1 The Mind: Embedded Neural Semantic Classifier & Waterfall Engine
+- **2D Waterfall Spatiotemporal Engine (`WaterfallAnalyzer`)**: Rolling matrix of 64 Mel bands $\times$ 128 temporal frames (~2.7s history) extracting horizontal guitar distortion continuity, 4-on-the-floor kick pulse cadence, and temporal bass flux (LFO wobble). Generates a dynamic `GL_R16F` texture sculpting the 3D raymarching terrain.
+- **Embedded Neural Classifier (`SemanticClassifierML`)**: 5-way softmax computing continuous barycentric weights across 5 distinct biomes (Liquid Silk Ocean, Volcanic Obsidian Chasm, Cyber Highway, Quantum Bass Abyss, and Celestial Nebula Stargate) plus Russell's circumplex affective coordinates (Arousal / Valence).
+- **Tempo Autocorrelation (`SemanticBrain`)**: 360-sample buffer (~8.0s window) with parabolic sub-sample peak interpolation locking onto musical BPM and triggering "gear-shift" kinetic surges on abrupt tempo drops.
 
-### 2.2 The Muscle: High-Frequency Physical DSP Pipeline
-- **Stream A (Fast-Path Reactivity)**: Dual-stream ring buffer processing 256 PCM oscilloscope samples and an 8-band Fast-FFT filterbank with latency $< 0.03\,\text{ms}$.
-- **Stream B (Physical Forces)**: Essentia C++ and native C++20 DSP worker evaluating Sethares dissonance, High-Frequency Content (HFC) onset novelty, and RMS acoustic energy.
-- **Physical Excitation Mapping**:
-  - **Sub-Bass Energy ($20-120\,\text{Hz}$)**: Modulates the cavern boundary radius through an elastic dilation function $\delta(r) = r_0 + \kappa \cdot E_{\text{bass}}$.
-  - **Onset Transients**: Generates a decaying sinusoidal shockwave perturbation over surface distance evaluations.
-  - **RMS Kinetic Mass**: Directly drives volumetric emission density and specular highlight intensity.
+### 2.2 The Muscle: Dual-Stream High-Frequency DSP Pipeline
+- **Stream A (Fast-Path Reactivity)**: Ultra-low latency ($< 0.05\,\text{ms}$) circular ring buffer processing 256 PCM oscilloscope samples, 1024-point Fast-FFT into 8 standard musical bands, and Automatic Gain Control (AGC) with soft-knee limiter.
+- **Stream B (Physical Forces)**: Native C++20 worker evaluating normalized Sethares dissonance, bounded spectral flatness (300 – 6000 Hz for high-gain guitar discrimination), mid-band crest factor, spectral flux, and High-Frequency Content (HFC) onsets.
 
-### 2.3 GPU SDF Raymarching Architecture (`shaders/raymarching.frag`)
-The geometry is computed entirely in screen-space via three structurally distinct signed distance functions:
+### 2.3 Cinematic Director & 2nd-Order Spring-Mass-Damper Physics Engine
+- **Harmonic Spring-Mass-Damper Suspension**: 2nd-order differential equation ($\ddot{x} + 2\zeta\omega_n\dot{x} + \omega_n^2(x - x_{\text{target}}) = F$) solved with a 4-substep symplectic Euler integrator. Provides physical suspension bounce on drum kicks, inelastic bump stops, lateral centrifugal sway on turns ($f_{\text{sway}} = +a_{\text{centrifugal}} \cdot 0.45$), and 6DoF chassis banking.
+- **World-Space Spline Track $\mathbf{C}(z)$**: Curvature is 100% audio reactive (dead-straight $X=0.00\,\text{m}$ in silence; dynamically curves and dives with musical energy).
 
-1. **`SDF_Liquid` (Organic / Harmonious State)**:
-   - Undulating minimal surface cavity combined with viscous metaball configurations and broad polynomial smooth minimum operations:
-     $$\text{smin}(a, b, k) = \text{mix}(b, a, h) - k \cdot h \cdot (1 - h), \quad h = \text{clamp}\left(0.5 + 0.5 \frac{b - a}{k}, 0.0, 1.0\right)$$
-2. **`SDF_Crystal` (Tension / Distortion State)**:
-   - Faceted octagonal prism corridors, quartz monoliths, and Kaleidoscopic Iterated Function Systems (KIFS) utilizing planar clipping operations (`max`, `abs`).
-3. **`SDF_Cyber` (Electronic / Rhythmic State)**:
-   - Chamfered rectangular conduits, periodic gate ring superstructures ($z \pmod{5.0}$), and longitudinal neon energy rails.
-
-- **Barycentric Trilateral Blending**:
-  $$d_{\text{world}}(p) = w_{\text{liquid}} \cdot d_{\text{liquid}}(p) + w_{\text{crystal}} \cdot d_{\text{crystal}}(p) + w_{\text{cyber}} \cdot d_{\text{cyber}}(p)$$
+### 2.4 GPU SDF Raymarching & 3D Procedural Architecture (`shaders/raymarching.frag`)
+- **112-Step Adaptive Sphere Tracing**: Branching biome optimization evaluating only active biomes ($w_i > 0.02$) achieving 145+ FPS on modern GPUs.
+- **5 Procedural Biomes**:
+  1. *Liquid Silk Ocean*: Harmonious waves and floating mercury dew pearls.
+  2. *Volcanic Obsidian Chasm*: Basalt spires and molten magma fissures.
+  3. *Cyber Matrix & Neon Highway*: Quantized equalizer towers and neon conduits.
+  4. *Quantum Bass Abyss*: Undulating cylindrical chamber with LFO wobble and gravity rings.
+  5. *Celestial Nebula Stargate*: Open-air floating crystalline causeway with zero ceiling.
+- **Dynamic 3D Procedural Architecture**: Neon gate portals, floating equalizer monoliths, and extruded 3D energy guardrails that emerge dynamically during rhythmic peaks and speed sprints.
+- **Safe Spherical Frustum Bubble**: Local spherical clearance eliminating dual-hole / black-hole artifacts on turns.
 
 ---
 
 ## 3. Building and Execution
 
 ### 3.1 Precompiled Standalone Distribution (Windows 64-bit)
-The portable package is located in `dist/audio-voyager-windows/` and includes static dependencies.
+The portable package is located in `dist/audio-voyager-windows/` and includes all required runtime DLLs and GLSL shaders.
 
 To launch:
 ```powershell
 .\audio_voyager.exe
 ```
 
-For synthetic laboratory test signals:
+Or using the batch launcher:
 ```powershell
-.\audio_voyager.exe --synthetic
+.\run_audio_voyager.bat
 ```
 
 ### 3.2 Compilation from Source (Docker / MinGW Toolchain)
 ```powershell
 docker compose run --rm audio-voyager bash /workspace/scripts/build_windows_exe.sh
+```
+
+### 3.3 Running Automated Test Suite (22 Unit Tests)
+```powershell
+docker run --rm -v "${PWD}:/workspace" audio-voyager:latest bash -c \
+  "g++ -std=c++20 -O2 -I/workspace/src /workspace/tests/test_audio_voyager.cpp \
+   /workspace/src/brain/waterfall_analyzer.cpp /workspace/src/brain/semantic_classifier_ml.cpp \
+   /workspace/src/brain/semantic_brain.cpp /workspace/src/director/autonomous_art_director.cpp \
+   -o /tmp/test_runner && /tmp/test_runner"
 ```
 
 ---
@@ -107,8 +123,9 @@ docker compose run --rm audio-voyager bash /workspace/scripts/build_windows_exe.
 | Key | Description |
 | :--- | :--- |
 | **`F11`** | Toggle Borderless Fullscreen mode |
-| **`F12`** | Toggle Real-Time Semantic Telemetry Overlay (Dear ImGui) |
+| **`F12`** | Toggle Real-Time Semantic Telemetry Overlay (Dear ImGui) & WebSDR Waterfall |
 | **`ESC`** | Graceful engine shutdown |
+| **Mouse Scroll** | Live input sensitivity gain adjustment ($0.1\times - 5.0\times$) |
 
 ---
 
@@ -116,6 +133,7 @@ docker compose run --rm audio-voyager bash /workspace/scripts/build_windows_exe.
 
 - **Language Standard**: ISO C++20 (`-std=c++20`).
 - **Graphics API**: OpenGL 4.5 Core Profile (`GLSL 450 core`).
-- **Framebuffer Architecture**: Multi-target HDR (`GL_RGBA16F`), dual-pass Gaussian Bloom downsampling, ACES Filmic Tone Mapping.
-- **Audio Thread Safety**: Wait-free, lock-free SPSC circular ring buffers.
-- **Target Performance**: $140+\,\text{FPS}$ at $1920 \times 1080$ on modern GPU hardware.
+- **Audio Capture**: Windows WASAPI Loopback via miniaudio (48 kHz, Stereo, non-blocking lock-free).
+- **Framebuffer Architecture**: Multi-target HDR (`GL_RGBA16F`), dual-pass Gaussian Bloom downsampling, directional screen-space god rays, ACES Filmic Tone Mapping.
+- **Physics Engine**: 2nd-order harmonic spring-mass-damper with symplectic Euler integration.
+- **Target Performance**: $140+\,\text{FPS}$ at $1920 \times 1080$ on NVIDIA GeForce RTX hardware.
