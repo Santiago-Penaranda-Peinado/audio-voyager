@@ -427,6 +427,38 @@ void test_neural_ml_discrimination() {
         assert(vec.is_silent);
     }
 
+    // 1.6 Melodic Warm Vocal / Acoustic Instrument (clean, sustained mids, low flatness & dissonance)
+    {
+        brain::SemanticClassifierML classifier;
+        core::PhysicsAudioState state{};
+        state.stream_b.dissonance = 0.08f;
+        state.stream_b.spectral_flatness = 0.08f;
+        state.stream_b.crest_factor_mids = 1.6f; // Even with dynamic compression (low cf), MUST NOT trigger Metal!
+        state.stream_b.spectral_centroid_hz = 1200.0f;
+        state.stream_b.energy = 0.30f;
+        state.stream_a.rms = 0.28f;
+        state.stream_a.spectrum_bands = {0.15f, 0.25f, 0.55f, 0.60f, 0.50f, 0.25f, 0.15f, 0.08f};
+
+        brain::WaterfallMetrics wf{};
+        wf.guitar_continuity = 0.60f; // Sustained vocal melodic continuity
+        wf.horizontal_continuity = 0.60f;
+        wf.four_on_the_floor_regularity = 0.05f;
+
+        for (int i = 0; i < 30; ++i) {
+            state.stream_b.is_onset = (i % 12 == 0);
+            classifier.accumulate_frame(state, 0.02f, wf, 0.08f, 95.0f);
+        }
+        brain::MLClassificationResult res;
+        bool eval = classifier.maybe_evaluate(res);
+        assert(eval);
+        std::cout << "  -> Warm Vocal Input Result: L=" << res.prob_liquid 
+                  << " | M=" << res.prob_metal 
+                  << " | C=" << res.prob_cyber 
+                  << " | D=" << res.prob_dubstep << std::endl;
+        assert(res.prob_liquid > 0.60f);
+        assert(res.prob_metal < 0.05f); // STRICTLY NO metal false positive
+    }
+
     std::cout << "  [PASS] Neural ML Biome Discrimination works with clear, robust separation!\n\n";
 }
 

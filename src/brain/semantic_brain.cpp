@@ -155,17 +155,46 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
         target_zenith  = glm::mix(target_zenith, core::PALETTE_CELESTIAL.zenith, cw);
     }
 
+    // 1.5b. Dynamic Musical Warmth Thermodynamics (Valence & Spectral Warmth Driven)
+    // Only active during playback (energy > 0.04f, non-silence) when dissonant metal does not dominate
+    float target_warmth = 0.0f;
+    if (!is_silent && audio_state.stream_b.energy > 0.04f && audio_state.stream_b.dissonance < 0.45f) {
+        float val_drive = (smooth_valence_ > 0.48f) ? std::clamp((smooth_valence_ - 0.48f) / 0.35f, 0.0f, 1.0f) : 0.0f;
+        float warm_energy = bands[0] + bands[1] + bands[2] + bands[3] + bands[4];
+        float cold_energy = bands[5] + bands[6] + bands[7];
+        float warm_ratio = warm_energy / (warm_energy + cold_energy + 1e-4f);
+        target_warmth = std::clamp(val_drive * (0.35f + 0.65f * warm_ratio), 0.0f, 0.85f);
+    }
+
+    const float alpha_warmth = 1.0f - std::exp(-dt / 1.5f);
+    smooth_warmth_factor_ += alpha_warmth * (target_warmth - smooth_warmth_factor_);
+    if (is_silent || audio_state.stream_b.energy < 0.02f) {
+        smooth_warmth_factor_ = 0.0f;
+    }
+
+    // Reference Harmonic Warm Palette: Deep Amber / Coral, Solar Gold, Warm Night Zenith
+    constexpr glm::vec3 WARM_PRIMARY(0.92f, 0.36f, 0.12f);
+    constexpr glm::vec3 WARM_ACCENT(1.00f, 0.76f, 0.22f);
+    constexpr glm::vec3 WARM_ZENITH(0.032f, 0.014f, 0.010f);
+
+    float effective_warmth = smooth_warmth_factor_ * (1.0f - vector_.weight_metal);
+    target_primary = glm::mix(target_primary, WARM_PRIMARY, effective_warmth);
+    target_accent  = glm::mix(target_accent,  WARM_ACCENT,  effective_warmth);
+    target_zenith  = glm::mix(target_zenith,  WARM_ZENITH,  effective_warmth);
+
     glm::vec3 target_part_base = 
         vector_.weight_liquid  * core::PALETTE_LIQUID.particle_base +
         vector_.weight_metal   * core::PALETTE_METAL.particle_base +
         vector_.weight_cyber   * core::PALETTE_CYBER.particle_base +
         vector_.weight_dubstep * core::PALETTE_DUBSTEP.particle_base;
+    target_part_base = glm::mix(target_part_base, WARM_PRIMARY * 0.8f, effective_warmth);
 
     glm::vec3 target_part_peak = 
         vector_.weight_liquid  * core::PALETTE_LIQUID.particle_peak +
         vector_.weight_metal   * core::PALETTE_METAL.particle_peak +
         vector_.weight_cyber   * core::PALETTE_CYBER.particle_peak +
         vector_.weight_dubstep * core::PALETTE_DUBSTEP.particle_peak;
+    target_part_peak = glm::mix(target_part_peak, WARM_ACCENT, effective_warmth);
 
     const float alpha_palette = 1.0f - std::exp(-dt / 1.8f);
     smooth_color_primary_   += alpha_palette * (target_primary   - smooth_color_primary_);

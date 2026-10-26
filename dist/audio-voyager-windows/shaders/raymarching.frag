@@ -446,7 +446,7 @@ float calcAO(vec3 p, vec3 n) {
 // Deep Cosmic Background Sky & Celestial Nebula
 vec3 getSkyColor(vec3 rd, float arousal, float is_silent, float w_celestial) {
     float horizon_factor = smoothstep(-0.20, 0.40, rd.y);
-    vec3 zenith_color = max(u_color_zenith.rgb * 1.2, vec3(0.008, 0.012, 0.024));
+    vec3 zenith_color = max(u_color_zenith.rgb * 1.2, vec3(0.006));
     vec3 horizon_glow = mix(u_color_primary.rgb * 0.45, u_color_accent.rgb * 0.35, 0.4) * (0.30 + arousal * 0.25) * (1.0 - is_silent * 0.7);
     vec3 sky = mix(horizon_glow, zenith_color, horizon_factor);
 
@@ -463,7 +463,8 @@ vec3 getSkyColor(vec3 rd, float arousal, float is_silent, float w_celestial) {
     float nebula_noise = sin(rd.x * 3.5 + u_resolution_time.z * 0.15) * cos(rd.z * 3.0) + sin(rd.y * 5.0) * 0.5;
     if (rd.y > -0.05) {
         float nebula_band = smoothstep(0.1, 0.55, rd.y + nebula_noise * 0.18) * smoothstep(0.85, 0.40, rd.y);
-        vec3 nebula_color = mix(u_color_accent.rgb, vec3(0.3, 0.7, 1.0), 0.5) * (0.4 + w_celestial * 0.8);
+        vec3 nebula_tint = mix(u_color_primary.rgb, u_color_accent.rgb, 0.65);
+        vec3 nebula_color = nebula_tint * (0.4 + w_celestial * 0.8);
         sky += nebula_color * nebula_band * (0.35 + arousal * 0.25) * (1.0 - is_silent * 0.6);
     }
 
@@ -601,8 +602,10 @@ void main() {
         float cam_diff_macro = max(dot(n, -cam_dir_p), 0.0);
         float cam_diff_micro = max(dot(micro_n, -cam_dir_p), 0.0);
         float cam_diff = mix(cam_diff_macro, cam_diff_micro, 0.35 * (0.4 + micro_boost * 0.6));
-        vec3 headlight_color = mix(vec3(0.72, 0.76, 0.86), synesthetic_color, 0.55);
-        vec3 cam_headlight = headlight_color * (cam_diff * spot_beam * cam_atten * 0.85);
+        vec3 neutral_palette = mix(u_color_primary.rgb, u_color_accent.rgb, 0.50);
+        vec3 ivory_base = mix(vec3(0.96, 0.94, 0.90), neutral_palette, 0.40);
+        vec3 headlight_color = mix(ivory_base, synesthetic_color, 0.55);
+        vec3 cam_headlight = headlight_color * (cam_diff * spot_beam * cam_atten * 0.45);
 
         // Forward searchlight specular micro-glints on oncoming surfaces
         vec3 cam_half = normalize(-cam_dir_p + view_dir);
@@ -629,10 +632,10 @@ void main() {
         // High-frequency specular micro-glints from point light
         float micro_spec_pow = mix(45.0, 160.0, micro_boost);
         float micro_spec = pow(max(dot(micro_n, half_v), 0.0), micro_spec_pow);
-        vec3 micro_specular = mix(accent_color, vec3(1.0), 0.70) * (micro_spec * (1.4 + treble_sparkle * 2.6 + micro_boost * 1.8)) * l_atten;
+        vec3 micro_specular = mix(accent_color, vec3(1.0), 0.20) * (micro_spec * (1.4 + treble_sparkle * 2.6 + micro_boost * 1.8)) * l_atten;
 
         // 3. Ambient Light (Deep rich obsidian darks with cubic AO falloff in crevices)
-        vec3 ambient = (sky_color * 0.30 + synesthetic_color * 0.12 + vec3(0.008, 0.010, 0.014)) * (ao * ao * ao * 0.85 + 0.15);
+        vec3 ambient = (sky_color * 0.30 + synesthetic_color * 0.12 + u_color_zenith.rgb * 0.8) * (ao * ao * ao * 0.85 + 0.15);
 
         // 4. Distinct Biome Roadways, Fissures, Guide Rails & Patterns along Spline Track
         float biome_accent_pattern = 0.0;
@@ -692,7 +695,8 @@ void main() {
             float causeway_lane = is_ground * smoothstep(0.40, 0.02, dist_center) * (0.6 + treble_sparkle * 1.2);
             float sg_phase = mod(p.z + 16.0, 32.0) - 16.0;
             float is_stargate = smoothstep(0.50, 0.05, abs(sg_phase)) * smoothstep(0.35, 0.05, abs(length(track_offset) - 4.0));
-            vec3 stargate_glow = vec3(0.35, 0.90, 1.0) * (is_stargate * 3.5 * (1.0 + melodic_mids * 1.5));
+            vec3 stargate_color = mix(u_color_primary.rgb, u_color_accent.rgb, 0.70);
+            vec3 stargate_glow = stargate_color * (is_stargate * 2.2 * (1.0 + melodic_mids * 1.0));
             track_glow += (causeway_lane * 1.5) * w_celestial;
             biome_accent_pattern += causeway_lane * 0.5 * w_celestial;
         }
@@ -727,7 +731,7 @@ void main() {
         float gate_edge = smoothstep(0.24, 0.02, abs(length(track_offset) - (2.65 + dilation * 0.50)));
         float pillar_edge = smoothstep(0.24, 0.02, abs(abs(track_offset.x) - (2.65 + dilation * 0.50))) * step(-2.4, track_offset.y) * step(track_offset.y, 0.5);
         float arch_structure = max(gate_edge, pillar_edge);
-        vec3 gate_neon = accent_color * (is_gate * arch_structure * 4.2 * (1.0 + ripple * 2.0 + emission_pulse * 1.4));
+        vec3 gate_neon = accent_color * (is_gate * arch_structure * 1.45 * (1.0 + ripple * 0.70 + emission_pulse * 0.50));
 
         // 2. 3D Extruded Energy Rails Shading (Both Lower Roadway Rails & Upper Holographic Conduits)
         float rail_wave_sh = sin(p.z * 0.45 + time * 3.2) * (0.12 + melodic_mids * 0.16) + sin(p.z * 1.4 - time * 9.0) * (ripple * 0.12);
@@ -741,7 +745,7 @@ void main() {
         float min_rail_dist = min(min(rail_dist_l, rail_dist_r), min(rail_high_dist_l, rail_high_dist_r));
         float is_rail = smoothstep(0.16, 0.03, min_rail_dist);
         float rail_pulse = smoothstep(0.35, 0.95, sin(p.z * 2.5 - time * 14.0));
-        vec3 rail_neon = mix(synesthetic_color, accent_color, 0.70) * (is_rail * (2.6 + rail_pulse * 2.2 + melodic_mids * 1.4));
+        vec3 rail_neon = mix(synesthetic_color, accent_color, 0.70) * (is_rail * (1.45 + rail_pulse * 1.20 + melodic_mids * 0.80));
 
         // 3. Floating Equalizer Monoliths Shading (Strictly Y-Bounded VU Pillars)
         float totem_z_dist = abs(mod(p.z + 3.0, 6.0) - 3.0);
@@ -754,7 +758,7 @@ void main() {
         float bar_frac = clamp((track_offset.y + 1.1) / max(totem_h_sh, 0.1), 0.0, 1.0);
         vec3 totem_bar_col = mix(synesthetic_color, accent_color, bar_frac);
         float bar_grid = smoothstep(0.15, 0.85, sin(track_offset.y * 12.0));
-        vec3 totem_neon = totem_bar_col * (is_totem * bar_grid * (2.4 + dilation * 1.8 + melodic_mids * 1.2));
+        vec3 totem_neon = totem_bar_col * (is_totem * bar_grid * (1.35 + dilation * 1.00 + melodic_mids * 0.65));
 
         vec3 arch_emissive = (gate_neon + rail_neon + totem_neon) * (arch_emergence * (1.0 - is_silent));
 
@@ -765,20 +769,20 @@ void main() {
         float vein_phase = p.z * 8.0 + p.x * 5.0 + sin(p.y * 10.0);
         float vein_pulse = smoothstep(0.965, 0.998, sin(vein_phase + time * (10.0 + treble_sparkle * 14.0)));
         float micro_vein = vein_pulse * (treble_sparkle * 2.4 + melodic_mids * 1.2) * (0.4 + 1.2 * micro_boost) * (1.0 - is_silent);
-        vec3 micro_vein_emissive = mix(accent_color, vec3(1.0, 0.95, 0.88), 0.75) * micro_vein;
+        vec3 micro_vein_emissive = mix(accent_color, u_color_primary.rgb, 0.40) * (micro_vein * 0.50);
 
         // 3. Acoustic Micro-Sparkles (High-Hat & Cymbal Surface Stardust, audio-reactive)
         float sparkle_cell = hash3(floor(p * 52.0));
         float sparkle_mask = step(0.91, sparkle_cell);
         float sparkle_flash = abs(sin(sparkle_cell * 80.0 + time * 24.0));
         float micro_sparkle = sparkle_mask * sparkle_flash * (treble_sparkle * 3.2) * (0.4 + 1.4 * micro_boost) * (1.0 - is_silent);
-        vec3 micro_sparkle_emissive = mix(vec3(1.0), accent_color, 0.35) * micro_sparkle;
+        vec3 micro_sparkle_emissive = mix(u_color_primary.rgb, accent_color, 0.70) * (micro_sparkle * 0.50);
 
         // 4. Percussive Rim Flashes & Silhouette Hardening
         float rim_exp = mix(6.0, 16.0, micro_boost);
         float micro_rim = pow(clamp(1.0 - max(dot(n, view_dir), 0.0), 0.0, 1.0), rim_exp);
         float percussive_flash = micro_rim * (treble_sparkle * 1.9 + max(0.0, emission_pulse - 0.9) * 1.4) * (0.3 + 0.8 * micro_boost) * (1.0 - is_silent);
-        vec3 micro_rim_emissive = mix(accent_color, vec3(0.92, 0.96, 1.0), 0.6) * percussive_flash;
+        vec3 micro_rim_emissive = mix(accent_color, u_color_primary.rgb, 0.50) * (percussive_flash * 0.50);
 
         // 5. Biome-Specific 100% Saturation Micro-Accents
         vec3 biome_micro_accents = vec3(0.0);
@@ -799,8 +803,9 @@ void main() {
             biome_micro_accents += vec3(0.9, 0.2, 1.0) * (dub_micro * (1.0 + emission_pulse * 1.8) * w_dubstep * micro_boost);
         }
 
-        // Base Albedo: solid neutral reflectance floor + synesthetic tint
-        vec3 base_mat = mix(vec3(0.06, 0.07, 0.09), synesthetic_color * 0.80, 0.50);
+        // Base Albedo: solid obsidian darks tinted by zenith and primary + synesthetic tint
+        vec3 dark_obsidian = u_color_zenith.rgb * 1.8 + u_color_primary.rgb * 0.03;
+        vec3 base_mat = mix(dark_obsidian, synesthetic_color * 0.80, 0.40);
         vec3 albedo = mix(base_mat, accent_color * 1.0, clamp(biome_accent_pattern, 0.0, 0.80));
 
         // Standard Fresnel reflection

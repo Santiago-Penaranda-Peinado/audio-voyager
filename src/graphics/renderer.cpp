@@ -352,25 +352,26 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     glDisable(GL_DEPTH_TEST);
     scene_fbo_.unbind();
 
-    // 7. Optical Post-Processing (Dynamic Bloom, CA, Radial God Rays & dynamic speed lines)
-    float dyn_bloom = tuners_.bloom_intensity * (0.35f + 0.40f * semantic.emission_pulse + (semantic.is_onset ? 0.25f : 0.0f));
-    dyn_bloom = std::clamp(dyn_bloom, 0.0f, 0.60f);
-    if (semantic.is_silent) dyn_bloom = tuners_.bloom_intensity * 0.15f;
-
-    float dyn_ca = tuners_.chromatic_aberration * (0.40f + 1.10f * semantic.surface_ripple + 0.50f * semantic.arousal);
-    if (semantic.is_silent) dyn_ca = tuners_.chromatic_aberration * 0.20f;
-
-    float speed_factor = std::clamp((semantic.speed_forward - 10.0f) / 24.0f, 0.0f, 1.0f);
-    float dyn_speed_lines = speed_factor * 0.60f + (semantic.is_onset && semantic.speed_forward > 18.0f ? 0.25f : 0.0f);
-    dyn_speed_lines = std::clamp(dyn_speed_lines, 0.0f, 0.85f) * tuners_.speed_multiplier;
-    if (semantic.is_silent) dyn_speed_lines = 0.0f;
-
     // Subdued drop contrast pop on sudden rhythm/tempo shifts or heavy kick drops (zero whiteout)
     if (semantic.gear_shift_pulse > 0.28f || (semantic.is_onset && semantic.emission_pulse > 1.40f)) {
         drop_flash_ = std::min(drop_flash_ + 0.25f * std::max(semantic.gear_shift_pulse, 0.45f), 0.35f);
     }
     drop_flash_ *= std::exp(-20.0f * dt);
     if (semantic.is_silent) drop_flash_ = 0.0f;
+
+    // 7. Optical Post-Processing (Dynamic Bloom, CA, Radial God Rays & dynamic speed lines)
+    float dyn_bloom = tuners_.bloom_intensity * (0.35f + 0.40f * semantic.emission_pulse + (semantic.is_onset ? 0.25f : 0.0f));
+    dyn_bloom = std::clamp(dyn_bloom, 0.0f, 0.60f);
+    if (semantic.is_silent) dyn_bloom = tuners_.bloom_intensity * 0.15f;
+
+    float ca_peak = std::max(semantic.surface_ripple, drop_flash_);
+    float dyn_ca = tuners_.chromatic_aberration * (0.10f + 0.90f * ca_peak + 0.30f * semantic.arousal * ca_peak);
+    if (semantic.is_silent) dyn_ca = 0.0f;
+
+    float speed_factor = std::clamp((semantic.speed_forward - 10.0f) / 24.0f, 0.0f, 1.0f);
+    float dyn_speed_lines = speed_factor * 0.60f + (semantic.is_onset && semantic.speed_forward > 18.0f ? 0.25f : 0.0f);
+    dyn_speed_lines = std::clamp(dyn_speed_lines, 0.0f, 0.85f) * tuners_.speed_multiplier;
+    if (semantic.is_silent) dyn_speed_lines = 0.0f;
 
     glDisable(GL_BLEND);
     postprocess_.render(scene_fbo_.get_texture(), width, height, 

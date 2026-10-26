@@ -41,8 +41,9 @@ void main() {
     vec2 center_offset = sample_uv - 0.5;
     float dist_sq = dot(center_offset, center_offset);
 
-    // Highly responsive chromatic aberration
-    float ca_strength = u_chromatic_aberration * 3.5 * (1.0 + u_glitch_amount * 0.6);
+    // Highly responsive chromatic aberration (restrained to transients/drops, zero permanent edge blur)
+    float peak_ca = max(u_drop_flash * 1.5, u_glitch_amount);
+    float ca_strength = u_chromatic_aberration * 0.85 * (0.20 + 1.80 * peak_ca);
     vec2 ca_offset = center_offset * dist_sq * ca_strength;
 
     float r = texture(u_scene_hdr, sample_uv + ca_offset).r;
@@ -99,7 +100,7 @@ void main() {
     // Eye Adaptation / Dynamic Auto-Exposure (stabilized against whitening)
     float luma = dot(composite, vec3(0.2126, 0.7152, 0.0722));
     float auto_exposure = 1.0 / sqrt(luma + 0.32);
-    auto_exposure = clamp(auto_exposure, 0.65, 1.15);
+    auto_exposure = clamp(auto_exposure, 0.38, 1.10);
     composite *= auto_exposure;
 
     // Cinematic Vignette

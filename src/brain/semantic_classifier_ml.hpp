@@ -37,8 +37,8 @@ public:
     }
 
 private:
-    void compute_mel_features(std::array<float, 32>& out_features);
-    void forward_pass(const std::array<float, 32>& input, MLClassificationResult& out_result);
+    void compute_mel_features(std::array<float, 32>& out_features, float& out_flatness);
+    void forward_pass(const std::array<float, 32>& input, float mean_flatness, MLClassificationResult& out_result);
 
     // Analysis window accumulation
     float time_since_last_eval_{0.0f};

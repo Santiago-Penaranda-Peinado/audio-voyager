@@ -67,8 +67,9 @@ bool SemanticClassifierML::maybe_evaluate(MLClassificationResult& out_result) {
     }
 
     std::array<float, 32> features{};
-    compute_mel_features(features);
-    forward_pass(features, out_result);
+    float mean_flatness = 0.0f;
+    compute_mel_features(features, mean_flatness);
+    forward_pass(features, mean_flatness, out_result);
 
     latest_result_ = out_result;
 
@@ -91,7 +92,7 @@ bool SemanticClassifierML::maybe_evaluate(MLClassificationResult& out_result) {
     return true;
 }
 
-void SemanticClassifierML::compute_mel_features(std::array<float, 32>& out_features) {
+void SemanticClassifierML::compute_mel_features(std::array<float, 32>& out_features, float& out_flatness) {
     const float inv_n = 1.0f / static_cast<float>(std::max<size_t>(frame_count_, 1));
 
     std::array<float, 8> mean_bands{};
@@ -110,6 +111,7 @@ void SemanticClassifierML::compute_mel_features(std::array<float, 32>& out_featu
 
     float mean_diss = accumulated_dissonance_ * inv_n;
     float mean_flatness = accumulated_flatness_ * inv_n;
+    out_flatness = mean_flatness;
     float mean_centroid = accumulated_centroid_ * inv_n;
     float mean_energy = accumulated_energy_ * inv_n;
     float mean_onsets = accumulated_onsets_ * inv_n;
@@ -120,7 +122,8 @@ void SemanticClassifierML::compute_mel_features(std::array<float, 32>& out_featu
     float mean_tempo_corr = accumulated_tempo_corr_ * inv_n;
 
     // Auto-calibrated normalized features: combined distortion integrates Sethares dissonance, bounded flatness, and low crest factor (< 1.8)
-    float crest_distortion = std::clamp((2.8f - mean_cf) / 1.5f, 0.0f, 1.0f);
+    // Low crest factor only represents clipping distortion when harmonic distortion/flatness is actually present (avoiding compressed vocal false positives)
+    float crest_distortion = (mean_flatness > 0.20f || mean_diss > 0.35f) ? std::clamp((2.8f - mean_cf) / 1.5f, 0.0f, 1.0f) : 0.0f;
     float combined_distortion = std::max({mean_diss, mean_flatness * 1.3f, crest_distortion * 0.85f});
 
     out_features[24] = std::clamp(combined_distortion * 3.0f, 0.0f, 3.0f);                      // Dissonance & distortion
@@ -133,7 +136,7 @@ void SemanticClassifierML::compute_mel_features(std::array<float, 32>& out_featu
     out_features[31] = std::clamp(mean_cf, 1.0f, 10.0f);                             // Mid-band crest factor
 }
 
-void SemanticClassifierML::forward_pass(const std::array<float, 32>& x, MLClassificationResult& out_result) {
+void SemanticClassifierML::forward_pass(const std::array<float, 32>& x, float mean_flatness, MLClassificationResult& out_result) {
     // Spectral summary bands
     float sub_energy   = (x[0] + x[1] + x[2] + x[3]) * 0.25f;
     float punch_energy = (x[4] + x[5] + x[6] + x[7]) * 0.25f;
@@ -223,9 +226,27 @@ void SemanticClassifierML::forward_pass(const std::array<float, 32>& x, MLClassi
 
     // 1. Heavy Metal / Hard Rock Signature (e.g. Bring Me The Horizon, Bullet For My Valentine, Hand of Blood):
     //    Continuous harmonic distortion / bounded flatness + low crest factor (< 1.8) + loud guitar mids + sustained continuity
+    //    Requires genuine acoustic distortion/dissonance, avoiding false positives from clean melodic vocals
+    bool has_distortion = (mean_flatness > 0.25f || diss > 0.48f);
     bool is_metal = (diss > 1.0f && mids_energy > 0.25f) ||
-                    (crest_factor < 2.0f && mids_energy > 0.25f && (diss > 0.60f || energy > 0.25f)) ||
-                    (guitar_cont > 0.40f && mids_energy > 0.25f && (diss > 0.60f || energy > 0.25f));
+                    (crest_factor < 2.0f && mids_energy > 0.25f && has_distortion) ||
+                    (guitar_cont > 0.40f && mids_energy > 0.25f && has_distortion);
+
+    // Warm Melodic Vocal / Acoustic Instrument Signature:
+    // Sustained mid-frequency continuity but clean harmonic body (low flatness and low dissonance)
+    bool is_warm_vocal = (guitar_cont > 0.35f) && (mean_flatness < 0.20f) && 
+                         (diss < 0.42f || (mean_flatness < 0.15f && diss < 0.55f));
+    if (is_warm_vocal) {
+        is_metal = false; // Never trigger metal on clean vocals
+        logit_metal = std::min(logit_metal, -4.0f);
+        bool has_rhythm = (kick_reg > 0.30f);
+        if (has_rhythm) {
+            logit_cyber = std::max(logit_cyber, logit_liquid + 2.0f);
+        } else {
+            float vocal_peace = (0.50f - std::min(diss, 0.45f)) * 6.0f + guitar_cont * 5.0f;
+            logit_liquid = std::max(logit_liquid + vocal_peace, logit_cyber + 3.0f);
+        }
+    }
 
     if (is_metal) {
         float metal_strength = (diss - 0.25f) * 4.0f + (mids_energy - 0.15f) * 3.0f + treble_energy * 1.5f;
@@ -238,7 +259,7 @@ void SemanticClassifierML::forward_pass(const std::array<float, 32>& x, MLClassi
     // 2. Cyber / Techno / Synthwave Signature:
     //    Steady 4-on-the-floor kick pulse (kick_reg > 0.30), clean punch bass, low distortion
     bool is_techno = (kick_reg > 0.30f && diss < 1.10f && bass_flux < 0.35f) ||
-                     (punch_energy > 0.25f && diss < 0.85f && onsets > 0.4f && bass_flux < 0.25f);
+                     (!is_warm_vocal && punch_energy > 0.25f && diss < 0.85f && onsets > 0.4f && bass_flux < 0.25f);
 
     if (is_techno) {
         logit_cyber += 4.5f + kick_reg * 3.0f;
