@@ -54,51 +54,46 @@ void main() {
     vec3 bloom = texture(u_bloom_blur, sample_uv).rgb;
     vec3 composite = scene_hdr + bloom * u_bloom_intensity;
 
-    // Instantaneous exposure flash on drops & sudden rhythm shifts
-    if (u_drop_flash > 0.001) {
-        composite += vec3(u_drop_flash * 0.16);
-    }
-
     // High-Performance Screen-Space Radial Volumetric God Rays (Strict Incandescent Specular Masking)
-    if (u_melodic_mids > 0.015) {
+    if (u_melodic_mids > 0.04) {
         vec2 sun_pos = (u_sun_pos.x == 0.0 && u_sun_pos.y == 0.0) ? vec2(0.5, 0.52) : u_sun_pos;
         float dist_from_sun = length(sample_uv - sun_pos);
-        vec2 ray_delta = (sample_uv - sun_pos) * (1.0 / 32.0) * 0.85;
+        vec2 ray_delta = (sample_uv - sun_pos) * (1.0 / 24.0) * 0.75;
         vec2 ray_uv = sample_uv;
         vec3 god_rays = vec3(0.0);
         float illumination = 1.0;
-        const float decay = 0.94;
-        const float weight = 0.006; // Delicate shafts, never a blanket of white fog
+        const float decay = 0.92;
+        const float weight = 0.0025; // Subtle, delicate shafts - NEVER a blanket of white fog
 
-        for (int i = 0; i < 32; ++i) {
+        for (int i = 0; i < 24; ++i) {
             ray_uv -= ray_delta;
             vec3 ray_sample = texture(u_scene_hdr, clamp(ray_uv, 0.0, 1.0)).rgb;
             float sample_lum = dot(ray_sample, vec3(0.2126, 0.7152, 0.0722));
-            // Only sample incandescent/specular light sources (> 1.15), never general terrain
-            if (sample_lum > 1.15) {
-                float excess = (sample_lum - 1.15) / max(sample_lum, 0.01);
+            // Only sample extreme incandescent specular lights (> 2.0), avoiding general terrain/walls
+            if (sample_lum > 2.0) {
+                float excess = (sample_lum - 2.0) / max(sample_lum, 0.01);
                 god_rays += ray_sample * excess * illumination * weight;
             }
             illumination *= decay;
         }
 
-        float ray_gain = clamp(u_melodic_mids * 0.25, 0.0, 0.16);
+        float ray_gain = clamp(u_melodic_mids * 0.12, 0.0, 0.06);
         // Aperture mask: preserves deep contrast in center tunnel vanishing point while fanning outward
-        float aperture_mask = smoothstep(0.10, 0.40, dist_from_sun) * smoothstep(0.95, 0.45, dist_from_sun);
-        composite += god_rays * (ray_gain * aperture_mask);
+        float aperture_mask = smoothstep(0.12, 0.45, dist_from_sun) * smoothstep(0.95, 0.50, dist_from_sun);
+        composite += min(god_rays * (ray_gain * aperture_mask), vec3(0.08));
     }
 
     // Radial speed lines (warp streaks during high-speed sprints / beat drops)
-    if (u_speed_lines > 0.02) {
+    if (u_speed_lines > 0.05) {
         float angle = atan(center_offset.y, center_offset.x);
         float r_dist = length(center_offset);
         // High-frequency angular noise lines streaming inwards
         float streak = sin(angle * 48.0 + u_time * 8.0) * sin(angle * 96.0 - u_time * 12.0);
-        streak = smoothstep(0.40, 0.95, streak);
+        streak = smoothstep(0.55, 0.98, streak);
         // Radial mask: visible towards periphery, crystal clear at center
-        float radial_mask = smoothstep(0.25, 0.75, r_dist);
-        float line_alpha = streak * radial_mask * u_speed_lines;
-        composite += vec3(line_alpha * 0.45);
+        float radial_mask = smoothstep(0.35, 0.85, r_dist);
+        float line_alpha = streak * radial_mask * u_speed_lines * 0.18;
+        composite += vec3(line_alpha);
     }
 
     // Eye Adaptation / Dynamic Auto-Exposure (stabilized against whitening)
@@ -115,8 +110,8 @@ void main() {
     vec3 ldr = ACESFilm(composite);
 
     // Dynamic contrast pop on rhythm changes / drops:
-    // Enhances dynamic range, deepens shadows into obsidian and makes highlights punchy
-    float contrast = 1.0 + u_drop_flash * 0.40 + 0.06;
+    // Enhances dynamic range, deepens shadows into obsidian and makes highlights punchy (no bleaching)
+    float contrast = 1.06 + u_drop_flash * 0.15;
     ldr = clamp((ldr - 0.5) * contrast + 0.5, 0.0, 1.0);
 
     // Deep, saturated color preservation (anti-milky / anti-pastel)

@@ -139,6 +139,7 @@ void ImGuiOverlay::render_dashboard(core::PhysicsTuners& tuners,
             ImGui::ProgressBar(semantic.weight_metal,   ImVec2(-1, 0), "SDF_Metal   (Obsidian Chasm / Rock)");
             ImGui::ProgressBar(semantic.weight_cyber,   ImVec2(-1, 0), "SDF_Cyber   (Matrix Highway / Techno)");
             ImGui::ProgressBar(semantic.weight_dubstep, ImVec2(-1, 0), "SDF_Dubstep (Bass Abyss / Speedcore)");
+            ImGui::ProgressBar(semantic.weight_crystal, ImVec2(-1, 0), "SDF_Celestial (Nebula Stargate / Post-Rock)");
             ImGui::Separator();
         }
 

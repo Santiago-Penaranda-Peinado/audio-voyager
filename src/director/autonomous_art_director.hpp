@@ -62,21 +62,22 @@ public:
 
     // Continuous World-Space Spline Track C(z) = (curve_x(z), curve_y(z))
     // Shared symmetrically between Art Director CPU kinematics and Raymarching GPU shader
-    [[nodiscard]] static inline glm::vec2 get_track_spline(float z) noexcept {
-        float x = 2.8f * std::sin(z * 0.035f) + 1.2f * std::sin(z * 0.075f);
-        float y = 2.7f + 0.55f * std::sin(z * 0.025f) + 0.25f * std::sin(z * 0.060f);
+    // Curvature scale is 100% music-driven: 0.0 in silence (dead straight), scaling with musical energy
+    [[nodiscard]] static inline glm::vec2 get_track_spline(float z, float curvature_scale = 1.0f) noexcept {
+        float x = (2.8f * std::sin(z * 0.035f) + 1.2f * std::sin(z * 0.075f)) * curvature_scale;
+        float y = 2.7f + (0.55f * std::sin(z * 0.025f) + 0.25f * std::sin(z * 0.060f)) * curvature_scale;
         return glm::vec2(x, y);
     }
 
-    [[nodiscard]] static inline glm::vec2 get_track_spline_deriv(float z) noexcept {
-        float dx = 2.8f * 0.035f * std::cos(z * 0.035f) + 1.2f * 0.075f * std::cos(z * 0.075f);
-        float dy = 0.55f * 0.025f * std::cos(z * 0.025f) + 0.25f * 0.060f * std::cos(z * 0.060f);
+    [[nodiscard]] static inline glm::vec2 get_track_spline_deriv(float z, float curvature_scale = 1.0f) noexcept {
+        float dx = (2.8f * 0.035f * std::cos(z * 0.035f) + 1.2f * 0.075f * std::cos(z * 0.075f)) * curvature_scale;
+        float dy = (0.55f * 0.025f * std::cos(z * 0.025f) + 0.25f * 0.060f * std::cos(z * 0.060f)) * curvature_scale;
         return glm::vec2(dx, dy);
     }
 
-    [[nodiscard]] static inline glm::vec2 get_track_spline_deriv2(float z) noexcept {
-        float d2x = -2.8f * 0.035f * 0.035f * std::sin(z * 0.035f) - 1.2f * 0.075f * 0.075f * std::sin(z * 0.075f);
-        float d2y = -0.55f * 0.025f * 0.025f * std::sin(z * 0.025f) - 0.25f * 0.060f * 0.060f * std::sin(z * 0.060f);
+    [[nodiscard]] static inline glm::vec2 get_track_spline_deriv2(float z, float curvature_scale = 1.0f) noexcept {
+        float d2x = (-2.8f * 0.035f * 0.035f * std::sin(z * 0.035f) - 1.2f * 0.075f * 0.075f * std::sin(z * 0.075f)) * curvature_scale;
+        float d2y = (-0.55f * 0.025f * 0.025f * std::sin(z * 0.025f) - 0.25f * 0.060f * 0.060f * std::sin(z * 0.060f)) * curvature_scale;
         return glm::vec2(d2x, d2y);
     }
 
@@ -87,6 +88,7 @@ public:
     [[nodiscard]] float get_fov_radians() const noexcept { return fov_radians_; }
     [[nodiscard]] glm::vec3 get_laser_pos() const noexcept { return laser_pos_; }
     [[nodiscard]] float get_trauma() const noexcept { return trauma_; }
+    [[nodiscard]] float get_curvature_scale() const noexcept { return smooth_curvature_scale_; }
 
     [[nodiscard]] glm::mat4 get_view_matrix() const;
     [[nodiscard]] glm::mat4 get_projection_matrix(float aspect) const;
@@ -109,6 +111,7 @@ private:
 
     float smooth_roll_{0.0f};
     float smooth_speed_{7.5f};
+    float smooth_curvature_scale_{0.0f};
     float trauma_{0.0f};
 
     // Onset edge trigger and refractory re-arm state

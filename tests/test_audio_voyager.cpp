@@ -36,23 +36,18 @@ float test_sdf_liquid(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, 
     float ocean_y = (track_c.y - 2.4f) + (wave1 + wave2 + wave_bass);
     float d_ocean = p.y - ocean_y;
 
-    glm::vec3 q_orb(p_rel.x, p_rel.y, std::fmod(p.z + 7.0f, 14.0f) - 7.0f);
-    q_orb.x = std::abs(q_orb.x) - (4.8f + dilation * 0.6f);
-    q_orb.y = p_rel.y - (0.4f + 0.8f * std::sin(p.z * 0.35f + time * 1.3f));
-    float d_orb = glm::length(q_orb) - (0.95f + dilation * 0.50f + mids * 0.30f);
-
-    glm::vec3 q_ring(p_rel.x, p_rel.y, std::fmod(p.z + 7.0f, 14.0f) - 7.0f);
-    q_ring.x = std::abs(q_ring.x) - (4.8f + dilation * 0.6f);
-    q_ring.y = p_rel.y - 0.2f;
-    glm::vec2 t_ring(glm::length(glm::vec2(q_ring.x, q_ring.z)) - 1.8f, q_ring.y);
-    float d_ring = glm::length(t_ring) - 0.09f;
-
-    float d_floating = std::min(d_orb, d_ring);
-    float d_liq_geom = smin(d_ocean, d_floating, 1.10f);
+    float d_liq_geom = d_ocean;
+    if (is_silent < 0.8f) {
+        glm::vec3 q_orb(p_rel.x, p_rel.y, std::fmod(p.z + 7.0f, 14.0f) - 7.0f);
+        q_orb.x = std::abs(q_orb.x) - (4.8f + dilation * 0.6f);
+        q_orb.y = p_rel.y - (0.4f + 0.8f * std::sin(p.z * 0.35f + time * 1.3f));
+        float d_orb = glm::length(q_orb) - (0.95f + dilation * 0.50f + mids * 0.30f);
+        d_liq_geom = smin(d_ocean, d_orb, 1.10f);
+    }
 
     float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
-    float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
-    float d_flight_corridor = std::min(d_track_corridor, d_cam_corridor);
+    float d_cam_bubble     = glm::length(p - cam_p) - (2.0f + dilation * 0.2f);
+    float d_flight_corridor = std::min(d_track_corridor, d_cam_bubble);
     return smax(d_liq_geom, -d_flight_corridor, 0.40f);
 }
 
@@ -95,8 +90,8 @@ float test_sdf_metal(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, f
 
     float d_canyon_geom = std::min(d_walls, std::min(d_ground, std::min(d_monolith, d_dagger)));
     float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
-    float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
-    float d_flight_corridor = std::min(d_track_corridor, d_cam_corridor);
+    float d_cam_bubble     = glm::length(p - cam_p) - (2.0f + dilation * 0.2f);
+    float d_flight_corridor = std::min(d_track_corridor, d_cam_bubble);
     return smax(d_canyon_geom, -d_flight_corridor, 0.40f);
 }
 
@@ -121,8 +116,8 @@ float test_sdf_cyber(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, f
     float d_tech = std::min(d_ring, std::min(d_rails, d_eq));
     float d_cyber_geom = std::min(d_corridor, d_tech);
     float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
-    float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
-    float d_flight_corridor = std::min(d_track_corridor, d_cam_corridor);
+    float d_cam_bubble     = glm::length(p - cam_p) - (2.0f + dilation * 0.2f);
+    float d_flight_corridor = std::min(d_track_corridor, d_cam_bubble);
     return smax(d_cyber_geom, -d_flight_corridor, 0.40f);
 }
 
@@ -150,15 +145,58 @@ float test_sdf_dubstep(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids,
 
     float d_dub_geom = std::min(d_void_tunnel, std::min(d_ring_segment, d_resonator));
     float d_track_corridor = glm::length(p_rel) - (2.6f + dilation * 0.3f);
-    float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
-    float d_flight_corridor = std::min(d_track_corridor, d_cam_corridor);
+    float d_cam_bubble     = glm::length(p - cam_p) - (2.0f + dilation * 0.2f);
+    float d_flight_corridor = std::min(d_track_corridor, d_cam_bubble);
     return smax(d_dub_geom, -d_flight_corridor, 0.40f);
 }
 
 // =============================================================================
-// PHASE 2: Procedural 3D Architectural Elements inside Raymarching SDF
+// BIOME 5: Celestial Nebula / Open-Air Stargate (Ambient, Ethereal, Post-Rock)
 // =============================================================================
-float test_sdf_architecture(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float ripple, float time) {
+float test_sdf_celestial(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float is_silent, float time) {
+    glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
+    glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
+
+    float causeway_y = track_c.y - 2.5f + std::sin(p.z * 0.12f + time * 0.8f) * 0.25f;
+    float d_causeway = std::max(p.y - causeway_y, (causeway_y - 0.7f) - p.y);
+    float causeway_width = 4.2f + dilation * 0.5f;
+    float d_floor = std::max(d_causeway, std::abs(p_rel.x) - causeway_width);
+
+    glm::vec3 q_ast(p_rel.x, p_rel.y, std::fmod(p.z + 9.0f, 18.0f) - 9.0f);
+    float ast_side = std::sin(p.z * 0.18f) >= 0.0f ? 1.0f : -1.0f;
+    q_ast.x -= ast_side * (4.6f + dilation * 0.6f);
+    q_ast.y -= (0.8f + 1.2f * std::sin(p.z * 0.25f + time * 0.9f));
+    float s_xy = std::sin(p.z * 0.2f + time * 0.4f), c_xy = std::cos(p.z * 0.2f + time * 0.4f);
+    glm::vec2 ast_xy(c_xy * q_ast.x - s_xy * q_ast.y, s_xy * q_ast.x + c_xy * q_ast.y);
+    q_ast.x = ast_xy.x; q_ast.y = ast_xy.y;
+    float s_yz = std::sin(time * 0.3f), c_yz = std::cos(time * 0.3f);
+    glm::vec2 ast_yz(c_yz * q_ast.y - s_yz * q_ast.z, s_yz * q_ast.y + c_yz * q_ast.z);
+    q_ast.y = ast_yz.x; q_ast.z = ast_yz.y;
+    float d_asteroid = (std::abs(q_ast.x) + std::abs(q_ast.y) + std::abs(q_ast.z) - (1.4f + mids * 0.6f)) * 0.57735027f;
+
+    glm::vec3 q_stargate(p_rel.x, p_rel.y - 0.2f, std::fmod(p.z + 16.0f, 32.0f) - 16.0f);
+    glm::vec2 sg_ring(glm::length(glm::vec2(q_stargate.x, q_stargate.y)) - (4.0f + dilation * 0.5f), q_stargate.z);
+    float d_stargate = glm::length(sg_ring) - 0.20f;
+
+    glm::vec3 q_shard(std::abs(p_rel.x) - (3.8f + dilation * 0.4f), p_rel.y + 0.4f, std::fmod(p.z + 4.5f, 9.0f) - 4.5f);
+    float s_sh = std::sin(time * 0.7f + p.z * 0.3f), c_sh = std::cos(time * 0.7f + p.z * 0.3f);
+    glm::vec2 sh_xz(c_sh * q_shard.x - s_sh * q_shard.z, s_sh * q_shard.x + c_sh * q_shard.z);
+    q_shard.x = sh_xz.x; q_shard.z = sh_xz.y;
+    glm::vec3 b_shard = glm::abs(q_shard) - glm::vec3(0.30f, 0.90f + mids * 0.4f, 0.30f);
+    float d_shards = std::max(b_shard.x, std::max(b_shard.y, b_shard.z));
+
+    float d_celestial_geom = std::min(d_floor, std::min(d_asteroid, std::min(d_stargate, d_shards)));
+    float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
+    float d_cam_bubble     = glm::length(p - cam_p) - (2.0f + dilation * 0.2f);
+    float d_flight = std::min(d_track_corridor, d_cam_bubble);
+    return smax(d_celestial_geom, -d_flight, 0.40f);
+}
+
+// =============================================================================
+// PHASE 2 & 3: Procedural 3D Architectural Elements inside Raymarching SDF
+// =============================================================================
+float test_sdf_architecture(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float ripple, float time, float emergence = 1.0f) {
+    if (emergence < 0.01f) return 1e5f;
     glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
     glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
 
@@ -171,7 +209,7 @@ float test_sdf_architecture(glm::vec3 p, glm::vec3 cam_p, float dilation, float 
     float arch_torus = std::max(std::abs(r_xy - r_gate) - 0.20f, std::abs(gate_z) - arch_depth);
     glm::vec2 p_pillar(std::abs(p_rel.x) - r_gate, p_rel.y + 1.0f);
     float arch_pillars = std::max(std::max(std::abs(p_pillar.x) - 0.24f, std::abs(p_pillar.y) - 1.4f), std::abs(gate_z) - arch_depth);
-    float d_gate_arch = std::min(arch_torus, arch_pillars);
+    float d_gate_arch = std::min(arch_torus, arch_pillars) + (1.0f - emergence) * 6.0f;
 
     // 2. Audio-Reactive Floating Equalizer Monoliths / Totems recurring every 6m
     float totem_spacing = 6.0f;
@@ -185,7 +223,7 @@ float test_sdf_architecture(glm::vec3 p, glm::vec3 cam_p, float dilation, float 
     glm::vec3 d_box = glm::abs(q_totem) - b_totem;
     float d_monolith = glm::length(glm::max(d_box, glm::vec3(0.0f))) + std::min(std::max(d_box.x, std::max(d_box.y, d_box.z)), 0.0f) - bevel;
     float eq_stripes = std::abs(std::sin(q_totem.y * 6.0f)) * 0.03f;
-    d_monolith += eq_stripes;
+    d_monolith += eq_stripes + (1.0f - emergence) * 6.0f;
 
     // 3. 3D Extruded Holographic Energy Rails / Guardrails along spline C(z)
     float rail_x_offset = 2.22f + dilation * 0.15f;
@@ -204,18 +242,25 @@ float test_sdf_architecture(glm::vec3 p, glm::vec3 cam_p, float dilation, float 
     float pylon_z = std::fmod(p.z + 2.0f, 4.0f) - 2.0f;
     glm::vec2 p_strut(std::abs(p_rel.x) - (rail_x_offset + 0.45f), p_rel.y - (-1.15f));
     float d_strut = std::max(std::max(std::abs(p_strut.x) - 0.50f, std::abs(p_strut.y) - 0.05f), std::abs(pylon_z) - 0.07f);
-    float d_rails = std::min(std::min(d_rails_lower, d_rails_upper), d_strut);
+    float d_rails = std::min(std::min(d_rails_lower, d_rails_upper), d_strut) + (1.0f - emergence) * 4.0f;
 
     return std::min(d_gate_arch, std::min(d_monolith, d_rails));
 }
 
-float test_map(glm::vec3 p, glm::vec3 cam_p, glm::vec4 weights, float dilation, float mids, float ripple, float is_silent, float time) {
-    float d_l = test_sdf_liquid(p, cam_p, dilation, mids, is_silent, time);
-    float d_m = test_sdf_metal(p, cam_p, dilation, mids, time);
-    float d_c = test_sdf_cyber(p, cam_p, dilation, mids, time);
-    float d_d = test_sdf_dubstep(p, cam_p, dilation, mids, time);
-
-    float d_interp = weights.x * d_l + weights.y * d_m + weights.z * d_c + weights.w * d_d;
+float test_map(glm::vec3 p, glm::vec3 cam_p, glm::vec4 weights, float dilation, float mids, float ripple, float is_silent, float time, float w_celestial = 0.0f) {
+    float d_interp = 0.0f;
+    float sum_w = 0.0f;
+    if (weights.x > 0.02f) { d_interp += weights.x * test_sdf_liquid(p, cam_p, dilation, mids, is_silent, time); sum_w += weights.x; }
+    if (weights.y > 0.02f) { d_interp += weights.y * test_sdf_metal(p, cam_p, dilation, mids, time); sum_w += weights.y; }
+    if (weights.z > 0.02f) { d_interp += weights.z * test_sdf_cyber(p, cam_p, dilation, mids, time); sum_w += weights.z; }
+    if (weights.w > 0.02f) { d_interp += weights.w * test_sdf_dubstep(p, cam_p, dilation, mids, time); sum_w += weights.w; }
+    if (w_celestial > 0.02f) { d_interp += w_celestial * test_sdf_celestial(p, cam_p, dilation, mids, is_silent, time); sum_w += w_celestial; }
+    if (sum_w > 0.001f) {
+        d_interp /= sum_w;
+    } else {
+        glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
+        d_interp = glm::length(glm::vec2(p.x - track_c.x, p.y - track_c.y)) - 2.8f;
+    }
 
     if (ripple > 0.01f) {
         float r = glm::length(p - cam_p);
@@ -223,15 +268,19 @@ float test_map(glm::vec3 p, glm::vec3 cam_p, glm::vec4 weights, float dilation, 
         d_interp += shock;
     }
 
-    // Phase 2: Merge procedural 3D architectural elements
-    float d_arch = test_sdf_architecture(p, cam_p, dilation, mids, ripple, time);
-    float d_world = std::min(d_interp, d_arch);
+    // Dynamic Emergence
+    float arch_emergence = is_silent > 0.5f ? 0.0f : 1.0f;
+    float d_world = d_interp;
+    if (arch_emergence > 0.01f) {
+        float d_arch = test_sdf_architecture(p, cam_p, dilation, mids, ripple, time, arch_emergence);
+        d_world = std::min(d_interp, d_arch);
+    }
 
     glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
     glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
     float d_track_corridor = glm::length(p_rel) - (2.2f + dilation * 0.2f);
-    float d_cam_corridor   = glm::length(glm::vec2(p.x - cam_p.x, p.y - cam_p.y)) - (2.2f + dilation * 0.2f);
-    float d_global_corridor = std::min(d_track_corridor, d_cam_corridor);
+    float d_cam_bubble     = glm::length(p - cam_p) - (2.0f + dilation * 0.2f);
+    float d_global_corridor = std::min(d_track_corridor, d_cam_bubble);
     return smax(d_world, -d_global_corridor, 0.45f);
 }
 
@@ -601,9 +650,14 @@ void test_sdf_clearance_at_camera() {
     std::cout << "  -> Dubstep SDF distance at camera position: " << d_dubstep << " m\n";
     assert(d_dubstep >= 2.0f);
 
-    // 5.5 Test Global map() with 4-way blending and heavy shockwave ripple
-    glm::vec4 weights(0.25f, 0.25f, 0.25f, 0.25f);
-    float d_map = test_map(cam_p, cam_p, weights, dilation, mids, 0.70f, 0.0f, 1.5f);
+    // 5.5 Test Celestial SDF clearance (Open-Air Stargate Biome)
+    float d_celestial = test_sdf_celestial(cam_p, cam_p, dilation, mids, 0.0f, 0.0f);
+    std::cout << "  -> Celestial SDF distance at camera position: " << d_celestial << " m\n";
+    assert(d_celestial >= 2.0f);
+
+    // 5.6 Test Global map() with 5-way blending and heavy shockwave ripple
+    glm::vec4 weights(0.20f, 0.20f, 0.20f, 0.20f);
+    float d_map = test_map(cam_p, cam_p, weights, dilation, mids, 0.70f, 0.0f, 1.5f, 0.20f);
     std::cout << "  -> Blended map() distance at camera position with ripple: " << d_map << " m\n";
     assert(d_map >= 2.0f);
 
@@ -1365,12 +1419,16 @@ void test_second_order_spring_damper_suspension() {
     director::AutonomousArtDirector test_turn_dir;
     core::AudioSemanticVector turn_semantic{};
     turn_semantic.speed_forward = 28.0f;
+    turn_semantic.arousal = 1.0f;
+    turn_semantic.elastic_dilation = 1.0f;
+    turn_semantic.melodic_mids = 1.0f;
 
     for (int i = 0; i < 300; ++i) {
         test_turn_dir.update(turn_semantic, 0.02f);
         float z = test_turn_dir.get_camera_pos().z;
-        glm::vec2 track = director::AutonomousArtDirector::get_track_spline(z);
-        glm::vec2 d2 = director::AutonomousArtDirector::get_track_spline_deriv2(z);
+        float cur_scale = test_turn_dir.get_curvature_scale();
+        glm::vec2 track = director::AutonomousArtDirector::get_track_spline(z, cur_scale);
+        glm::vec2 d2 = director::AutonomousArtDirector::get_track_spline_deriv2(z, cur_scale);
         float roll = test_turn_dir.get_camera_roll();
         float sway = test_turn_dir.get_camera_pos().x - track.x;
 
@@ -1605,6 +1663,150 @@ void test_procedural_3d_architectural_elements() {
     std::cout << "  [PASS] Procedural 3D Architectural Elements (Gates, Totems, Rails) fully operational and collision-safe!\n\n";
 }
 
+// -----------------------------------------------------------------------------
+// Test 21: 100% Music-Driven Spline Curvature & Dead-Straight Track in Silence
+// -----------------------------------------------------------------------------
+void test_music_driven_track_curvature_in_silence() {
+    std::cout << "[TEST 21] Testing 100% Music-Driven Track Curvature & Dead-Straight Track in Silence...\n";
+
+    // 21.1 Spline Geometry: When curvature_scale == 0.0f, track must be dead-straight at (0.0, 2.7)
+    for (float z = -500.0f; z <= 500.0f; z += 10.0f) {
+        glm::vec2 p0 = director::AutonomousArtDirector::get_track_spline(z, 0.0f);
+        assert(p0.x == 0.0f);
+        assert(p0.y == 2.7f);
+
+        glm::vec2 d1 = director::AutonomousArtDirector::get_track_spline_deriv(z, 0.0f);
+        assert(d1.x == 0.0f);
+        assert(d1.y == 0.0f);
+
+        glm::vec2 d2 = director::AutonomousArtDirector::get_track_spline_deriv2(z, 0.0f);
+        assert(d2.x == 0.0f);
+        assert(d2.y == 0.0f);
+    }
+    std::cout << "  -> Verified get_track_spline(z, 0.0f) is strictly (0.0, 2.7) across [-500m, +500m] with zero derivatives!\n";
+
+    // 21.2 Full Music Excitation: Dynamic Curvature produces wide banking curves
+    float max_x_curve = 0.0f;
+    for (float z = 0.0f; z <= 200.0f; z += 2.0f) {
+        glm::vec2 p_full = director::AutonomousArtDirector::get_track_spline(z, 1.0f);
+        max_x_curve = std::max(max_x_curve, std::abs(p_full.x));
+    }
+    std::cout << "  -> Maximum lateral curve amplitude at 100% curvature scale: " << max_x_curve << "m\n";
+    assert(max_x_curve >= 3.5f);
+
+    // 21.3 Art Director Dynamic Curvature Scale Transition (Silence -> Metal Rush -> Silence)
+    director::AutonomousArtDirector director;
+    assert(director.get_curvature_scale() == 0.0f);
+
+    // Run in silence: curvature must stay 0.0f, camera centered at X=0, Roll=0
+    core::AudioSemanticVector silent_sem{};
+    silent_sem.is_silent = true;
+    silent_sem.arousal = 0.0f;
+    silent_sem.elastic_dilation = 0.0f;
+    silent_sem.speed_forward = 5.5f;
+
+    for (int i = 0; i < 60; ++i) {
+        director.update(silent_sem, 0.02f);
+    }
+    std::cout << "  -> Curvature scale in silence: " << director.get_curvature_scale() << "\n";
+    assert(director.get_curvature_scale() < 0.01f);
+    assert(std::abs(director.get_camera_roll()) < 0.001f);
+    assert(std::abs(director.get_camera_pos().x) < 0.05f);
+
+    // Music bursts with high arousal, speed, and dilation
+    core::AudioSemanticVector loud_sem{};
+    loud_sem.is_silent = false;
+    loud_sem.arousal = 0.95f;
+    loud_sem.elastic_dilation = 0.90f;
+    loud_sem.melodic_mids = 0.85f;
+    loud_sem.speed_forward = 28.0f;
+
+    for (int i = 0; i < 90; ++i) {
+        director.update(loud_sem, 0.02f);
+    }
+    float high_curv = director.get_curvature_scale();
+    std::cout << "  -> Curvature scale under musical surge: " << high_curv << "\n";
+    assert(high_curv > 0.40f);
+    assert(std::abs(director.get_camera_roll()) > 0.005f);
+
+    // Return to silence: smooth decay back to 0.0f
+    for (int i = 0; i < 150; ++i) {
+        director.update(silent_sem, 0.02f);
+    }
+    float recovered_curv = director.get_curvature_scale();
+    std::cout << "  -> Curvature scale after return to silence: " << recovered_curv << "\n";
+    assert(recovered_curv < 0.01f);
+    assert(std::abs(director.get_camera_roll()) < 0.001f);
+
+    std::cout << "  [PASS] Track curves are 100% music-driven and dead-straight in silence!\n\n";
+}
+
+// -----------------------------------------------------------------------------
+// Test 22: Celestial Nebula Biome, Open-Air Stargate & Shader SDF Optimization
+// -----------------------------------------------------------------------------
+void test_celestial_nebula_open_air_and_sdf_branching() {
+    std::cout << "[TEST 22] Testing Celestial Nebula Open-Air Environment & Shader Branching...\n";
+
+    glm::vec3 cam_p(0.0f, 2.8f, 10.0f);
+    float time = 1.0f;
+
+    // 22.1 Celestial Camera Clearance
+    float d_cam = test_sdf_celestial(cam_p, cam_p, 0.5f, 0.5f, 0.0f, time);
+    std::cout << "  -> Celestial SDF clearance at camera position: " << d_cam << "m\n";
+    assert(d_cam >= 2.0f);
+
+    // 22.2 Open-Air Stargate Environment: Overhead sky MUST be vast and unobstructed (no ceiling)
+    glm::vec2 track_10 = director::AutonomousArtDirector::get_track_spline(10.0f);
+    for (float sky_y : {8.0f, 15.0f, 30.0f, 60.0f}) {
+        glm::vec3 p_sky(track_10.x, sky_y, 10.0f);
+        float d_sky = test_sdf_celestial(p_sky, cam_p, 0.0f, 0.0f, 0.0f, time);
+        std::cout << "  -> Celestial open sky clearance at Y=" << sky_y << "m: " << d_sky << "m" << std::endl;
+        assert(d_sky >= (sky_y - 8.0f)); // Linearly increasing clearance proves open sky (zero ceiling!)
+    }
+    std::cout << "  -> Verified completely open sky with no overhead ceiling geometry!" << std::endl;
+
+    // 22.3 Cosmic Causeway Floor & Floating Stargate Structures
+    float causeway_y = track_10.y - 2.5f + std::sin(10.0f * 0.12f + time * 0.8f) * 0.25f;
+    glm::vec3 p_floor(track_10.x, causeway_y, 10.0f);
+    float d_floor = test_sdf_celestial(p_floor, cam_p, 0.0f, 0.0f, 0.0f, time);
+    std::cout << "  -> Cosmic Causeway floor surface distance at Y=" << causeway_y << "m: " << d_floor << "m" << std::endl;
+    assert(std::abs(d_floor) < 0.20f);
+
+    // 22.4 Semantic Brain Celestial Nebula Affinity Inference
+    brain::SemanticBrain brain;
+    core::PhysicsAudioState ambient_state{};
+    ambient_state.stream_a.rms = 0.25f;
+    ambient_state.stream_a.spectrum_bands = {0.1f, 0.15f, 0.2f, 0.3f, 0.4f, 0.6f, 0.8f, 0.9f}; // high air/sparkle
+    ambient_state.stream_b.energy = 0.25f;
+    ambient_state.stream_b.dissonance = 0.05f; // extremely harmonious, zero harshness
+    ambient_state.stream_b.band_air = 0.85f;
+
+    for (int i = 0; i < 90; ++i) {
+        brain.update(ambient_state, 0.02f);
+    }
+    const auto& sem_vec = brain.get_semantic_vector();
+    std::cout << "  -> Ambient Celestial Affinity: weight_crystal=" << sem_vec.weight_crystal << std::endl;
+    assert(sem_vec.weight_crystal > 0.05f);
+
+    // 22.5 Shader SDF Optimization: Inactive Biome Pruning & Clutter Emergence
+    // When architecture emergence is 0 (silence/calm), all arches/totems disappear
+    float d_silent_arch = test_sdf_architecture(glm::vec3(0.0f, 5.35f, 0.0f), cam_p, 0.0f, 0.0f, 0.0f, time, 0.0f);
+    assert(d_silent_arch >= 1e4f);
+
+    // When architecture emergence is 1 (drop surge), portal arch appears
+    float d_active_arch = test_sdf_architecture(glm::vec3(0.0f, 5.35f, 0.0f), cam_p, 0.0f, 0.0f, 0.0f, time, 1.0f);
+    assert(std::abs(d_active_arch) < 0.25f);
+    std::cout << "  -> Procedural clutter fully pruned in silence (dist=" << d_silent_arch << "m) and materializes during surges (" << d_active_arch << "m)!" << std::endl;
+
+    // Global map() with pure Celestial weight evaluates only Celestial branch
+    glm::vec4 zero_weights(0.0f, 0.0f, 0.0f, 0.0f);
+    float d_pure_celestial = test_map(p_floor, cam_p, zero_weights, 0.0f, 0.0f, 0.0f, 0.0f, time, 1.0f);
+    std::cout << "  -> Pure Celestial map() evaluation at causeway floor: " << d_pure_celestial << "m" << std::endl;
+    assert(std::abs(d_pure_celestial) < 0.20f);
+
+    std::cout << "  [PASS] Celestial Nebula Biome, Open-Air Stargate & Branching SDF operational!\n\n";
+}
+
 int main() {
     std::cout << "=================================================================\n";
     std::cout << "   AUDIO-VOYAGER SYSTEM INTEGRITY & ARCHITECTURAL VERIFICATION   \n";
@@ -1630,6 +1832,8 @@ int main() {
     test_world_space_spline_track_continuity();
     test_reactive_micro_details_at_100_percent();
     test_procedural_3d_architectural_elements();
+    test_music_driven_track_curvature_in_silence();
+    test_celestial_nebula_open_air_and_sdf_branching();
 
     std::cout << "=================================================================\n";
     std::cout << "   ALL VERIFICATION TESTS PASSED SUCCESSFULLY! (100% HEALTHY)    \n";

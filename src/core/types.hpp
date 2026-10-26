@@ -76,13 +76,13 @@ struct PhysicsAudioState {
 // Continuous Semantic Vector for Raymarching Biomes and Autonomous Direction
 struct AudioSemanticVector {
     // 1. THE MIND: Continuous Biome Weights (Inferred via ML, Sum = 1.0)
-    float weight_liquid{0.25f};   // P(Jazz, Lofi, Ambient, Silk Ocean)
-    float weight_metal{0.25f};    // P(Metal, Heavy Rock, Hand of Blood, Obsidian Spire Chasm)
-    float weight_crystal{0.25f};  // Alias/Tension: synced with weight_metal
-    float weight_cyber{0.25f};    // P(Electronic, Techno, Synthwave, Cyber Highway)
-    float weight_dubstep{0.25f};  // P(Dubstep, Speedcore, Skrillex, Camellia, Quantum Bass Void)
-    float valence{0.5f};          // Emotional Valence [0.0 = dark/tense, 1.0 = bright/euphoric]
-    float arousal{0.5f};          // Physiological Arousal [0.0 = calm, 1.0 = intense]
+    float weight_liquid{1.0f};    // P(Jazz, Lofi, Ambient, Silk Ocean) - resting tranquil default
+    float weight_metal{0.0f};     // P(Metal, Heavy Rock, Hand of Blood, Obsidian Spire Chasm)
+    float weight_crystal{0.0f};   // Celestial Open-Air Stargate
+    float weight_cyber{0.0f};     // P(Electronic, Techno, Synthwave, Cyber Highway)
+    float weight_dubstep{0.0f};   // P(Dubstep, Speedcore, Skrillex, Camellia, Quantum Bass Void)
+    float valence{0.65f};         // Emotional Valence [0.0 = dark/tense, 1.0 = bright/euphoric]
+    float arousal{0.0f};          // Physiological Arousal [0.0 = calm, 1.0 = intense]
 
     // 2. THE MUSCLE: Multi-Band Physical Excitations (Evaluated at 144 Hz)
     float elastic_dilation{0.0f};  // Sub-Bass cavity & wave dilation
@@ -157,6 +157,15 @@ inline const BiomePalette PALETTE_DUBSTEP = {
     .zenith        = glm::vec3(0.025f, 0.010f, 0.048f),
     .particle_base = glm::vec3(0.15f, 1.00f, 0.32f),
     .particle_peak = glm::vec3(0.70f, 0.10f, 1.00f)
+};
+
+// Celestial: open-air cosmic stargate, shimmering sapphire twilight, crystalline cyan and starlight
+inline const BiomePalette PALETTE_CELESTIAL = {
+    .primary       = glm::vec3(0.12f, 0.22f, 0.58f),
+    .accent        = glm::vec3(0.35f, 0.90f, 1.00f),
+    .zenith        = glm::vec3(0.003f, 0.006f, 0.018f),
+    .particle_base = glm::vec3(0.15f, 0.40f, 0.92f),
+    .particle_peak = glm::vec3(0.75f, 0.95f, 1.00f)
 };
 
 // Runtime GUI tuners (F12 Secret HUD)

@@ -7,13 +7,13 @@ namespace audio_voyager::brain {
 
 SemanticBrain::SemanticBrain() {
     onset_history_.resize(ONSET_HISTORY_SIZE, 0.0f);
-    last_ml_result_.prob_liquid  = 0.25f;
-    last_ml_result_.prob_metal   = 0.25f;
-    last_ml_result_.prob_crystal = 0.25f;
-    last_ml_result_.prob_cyber   = 0.25f;
-    last_ml_result_.prob_dubstep = 0.25f;
-    last_ml_result_.valence      = 0.5f;
-    last_ml_result_.arousal      = 0.5f;
+    last_ml_result_.prob_liquid  = 1.0f;
+    last_ml_result_.prob_metal   = 0.0f;
+    last_ml_result_.prob_crystal = 0.0f;
+    last_ml_result_.prob_cyber   = 0.0f;
+    last_ml_result_.prob_dubstep = 0.0f;
+    last_ml_result_.valence      = 0.65f;
+    last_ml_result_.arousal      = 0.0f;
 
     smooth_color_primary_ = core::PALETTE_LIQUID.primary;
     smooth_color_accent_  = core::PALETTE_LIQUID.accent;
@@ -66,14 +66,14 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     // 1. LA MENTE: Inferencia de Machine Learning Ágil (~0.5s)
     // =========================================================================
     if (is_silent) {
-        // En silencio, relajar suavemente hacia el estado Zen de reposo (Océano Líquido)
-        last_ml_result_.prob_liquid  = 0.85f;
-        last_ml_result_.prob_metal   = 0.05f;
-        last_ml_result_.prob_crystal = 0.05f;
-        last_ml_result_.prob_cyber   = 0.05f;
-        last_ml_result_.prob_dubstep = 0.05f;
+        // En silencio, relajar suavemente hacia el estado Zen de reposo (100% Océano Líquido)
+        last_ml_result_.prob_liquid  = 1.0f;
+        last_ml_result_.prob_metal   = 0.0f;
+        last_ml_result_.prob_crystal = 0.0f;
+        last_ml_result_.prob_cyber   = 0.0f;
+        last_ml_result_.prob_dubstep = 0.0f;
         last_ml_result_.valence      = 0.65f;
-        last_ml_result_.arousal      = 0.05f;
+        last_ml_result_.arousal      = 0.0f;
     } else {
         ml_classifier_.accumulate_frame(audio_state, dt, wf_metrics, last_best_corr_, vector_.bpm);
         MLClassificationResult eval_res;
@@ -86,29 +86,46 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
     const float alpha_mind = 1.0f - std::exp(-0.85f * dt);
     smooth_weight_liquid_  += alpha_mind * (last_ml_result_.prob_liquid  - smooth_weight_liquid_);
     smooth_weight_metal_   += alpha_mind * (last_ml_result_.prob_metal   - smooth_weight_metal_);
-    smooth_weight_crystal_ = smooth_weight_metal_;
     smooth_weight_cyber_   += alpha_mind * (last_ml_result_.prob_cyber   - smooth_weight_cyber_);
     smooth_weight_dubstep_ += alpha_mind * (last_ml_result_.prob_dubstep - smooth_weight_dubstep_);
     smooth_valence_        += alpha_mind * (last_ml_result_.valence      - smooth_valence_);
     smooth_arousal_        += alpha_mind * (last_ml_result_.arousal      - smooth_arousal_);
+
+    // Phase 3.b: Celestial Nebula / Open-Air Stargate Biome
+    // Detects ambient, celestial, and post-rock passages (soaring guitar walls, airy shimmer, low dissonance)
+    float post_rock_affinity = wf_metrics.guitar_continuity * (1.0f - std::clamp(audio_state.stream_b.dissonance, 0.0f, 1.0f)) * 0.85f;
+    float ambient_affinity   = audio_state.stream_b.band_air * 1.2f + (1.0f - std::clamp(audio_state.stream_b.energy * 2.5f, 0.0f, 1.0f)) * 0.5f;
+    bool celestial_cond      = (smooth_valence_ > 0.52f || post_rock_affinity > 0.40f) && (audio_state.stream_b.dissonance < 0.28f);
+    float target_celestial   = celestial_cond ? std::clamp(std::max(post_rock_affinity, ambient_affinity * 0.5f), 0.0f, 0.85f) : 0.0f;
+    if (is_silent) {
+        target_celestial = 0.0f; // Silence is pure tranquil liquid ocean
+    }
+    smooth_weight_crystal_ += alpha_mind * (target_celestial - smooth_weight_crystal_);
+
+    if (is_silent) {
+        if (smooth_weight_metal_ < 0.005f) smooth_weight_metal_ = 0.0f;
+        if (smooth_weight_cyber_ < 0.005f) smooth_weight_cyber_ = 0.0f;
+        if (smooth_weight_dubstep_ < 0.005f) smooth_weight_dubstep_ = 0.0f;
+        if (smooth_weight_crystal_ < 0.005f) smooth_weight_crystal_ = 0.0f;
+    }
 
     // Normalización baricéntrica 4-dimensional estricta (w_l + w_m + w_c + w_d = 1.0)
     float sum_w = smooth_weight_liquid_ + smooth_weight_metal_ + smooth_weight_cyber_ + smooth_weight_dubstep_;
     if (sum_w > 1e-4f) {
         vector_.weight_liquid  = smooth_weight_liquid_  / sum_w;
         vector_.weight_metal   = smooth_weight_metal_   / sum_w;
-        vector_.weight_crystal = vector_.weight_metal;
+        vector_.weight_crystal = smooth_weight_crystal_;
         vector_.weight_cyber   = smooth_weight_cyber_   / sum_w;
         vector_.weight_dubstep = smooth_weight_dubstep_ / sum_w;
     } else {
-        vector_.weight_liquid  = 0.25f;
-        vector_.weight_metal   = 0.25f;
-        vector_.weight_crystal = 0.25f;
-        vector_.weight_cyber   = 0.25f;
-        vector_.weight_dubstep = 0.25f;
+        vector_.weight_liquid  = 1.0f;
+        vector_.weight_metal   = 0.0f;
+        vector_.weight_crystal = 0.0f;
+        vector_.weight_cyber   = 0.0f;
+        vector_.weight_dubstep = 0.0f;
     }
     vector_.valence = smooth_valence_;
-    vector_.arousal = is_silent ? 0.05f : smooth_arousal_;
+    vector_.arousal = is_silent ? 0.0f : smooth_arousal_;
 
     // =========================================================================
     // 1.5. PALETAS COHERENTES & MORFOLOGÍA TEMPORAL CONTINUA (tau ~ 1.8s)
@@ -130,6 +147,13 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
         vector_.weight_metal   * core::PALETTE_METAL.zenith +
         vector_.weight_cyber   * core::PALETTE_CYBER.zenith +
         vector_.weight_dubstep * core::PALETTE_DUBSTEP.zenith;
+
+    if (vector_.weight_crystal > 0.02f) {
+        float cw = std::clamp(vector_.weight_crystal, 0.0f, 0.70f);
+        target_primary = glm::mix(target_primary, core::PALETTE_CELESTIAL.primary, cw);
+        target_accent  = glm::mix(target_accent, core::PALETTE_CELESTIAL.accent, cw);
+        target_zenith  = glm::mix(target_zenith, core::PALETTE_CELESTIAL.zenith, cw);
+    }
 
     glm::vec3 target_part_base = 
         vector_.weight_liquid  * core::PALETTE_LIQUID.particle_base +

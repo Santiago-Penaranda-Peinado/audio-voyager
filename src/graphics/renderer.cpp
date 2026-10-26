@@ -293,12 +293,12 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     ubo_data.color_primary[0] = semantic.color_primary.r;
     ubo_data.color_primary[1] = semantic.color_primary.g;
     ubo_data.color_primary[2] = semantic.color_primary.b;
-    ubo_data.color_primary[3] = 1.0f;
+    ubo_data.color_primary[3] = director_.get_curvature_scale();
 
     ubo_data.color_accent[0] = semantic.color_accent.r;
     ubo_data.color_accent[1] = semantic.color_accent.g;
     ubo_data.color_accent[2] = semantic.color_accent.b;
-    ubo_data.color_accent[3] = 1.0f;
+    ubo_data.color_accent[3] = semantic.weight_crystal; // Celestial biome weight
 
     ubo_data.color_zenith[0] = semantic.color_zenith.r;
     ubo_data.color_zenith[1] = semantic.color_zenith.g;
@@ -361,15 +361,15 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     if (semantic.is_silent) dyn_ca = tuners_.chromatic_aberration * 0.20f;
 
     float speed_factor = std::clamp((semantic.speed_forward - 10.0f) / 24.0f, 0.0f, 1.0f);
-    float dyn_speed_lines = speed_factor * 0.75f + (semantic.is_onset && semantic.speed_forward > 18.0f ? 0.35f : 0.0f);
-    dyn_speed_lines = std::clamp(dyn_speed_lines, 0.0f, 1.0f) * tuners_.speed_multiplier;
+    float dyn_speed_lines = speed_factor * 0.60f + (semantic.is_onset && semantic.speed_forward > 18.0f ? 0.25f : 0.0f);
+    dyn_speed_lines = std::clamp(dyn_speed_lines, 0.0f, 0.85f) * tuners_.speed_multiplier;
     if (semantic.is_silent) dyn_speed_lines = 0.0f;
 
-    // Dynamic drop flash & contrast pop on sudden rhythm/tempo shifts or heavy kick drops
-    if (semantic.gear_shift_pulse > 0.22f || (semantic.is_onset && semantic.emission_pulse > 1.30f)) {
-        drop_flash_ = std::min(drop_flash_ + 0.45f * std::max(semantic.gear_shift_pulse, 0.60f), 0.70f);
+    // Subdued drop contrast pop on sudden rhythm/tempo shifts or heavy kick drops (zero whiteout)
+    if (semantic.gear_shift_pulse > 0.28f || (semantic.is_onset && semantic.emission_pulse > 1.40f)) {
+        drop_flash_ = std::min(drop_flash_ + 0.25f * std::max(semantic.gear_shift_pulse, 0.45f), 0.35f);
     }
-    drop_flash_ *= std::exp(-14.0f * dt);
+    drop_flash_ *= std::exp(-20.0f * dt);
     if (semantic.is_silent) drop_flash_ = 0.0f;
 
     glDisable(GL_BLEND);

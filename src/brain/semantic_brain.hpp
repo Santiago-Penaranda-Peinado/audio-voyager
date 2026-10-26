@@ -35,13 +35,13 @@ private:
     float last_best_corr_{0.0f};
 
     // Slow temporal integrator for Mind / ML biome weights (tau ~ 3.5s)
-    float smooth_weight_liquid_{0.25f};
-    float smooth_weight_metal_{0.25f};
-    float smooth_weight_crystal_{0.25f};
-    float smooth_weight_cyber_{0.25f};
-    float smooth_weight_dubstep_{0.25f};
-    float smooth_valence_{0.5f};
-    float smooth_arousal_{0.5f};
+    float smooth_weight_liquid_{1.0f};
+    float smooth_weight_metal_{0.0f};
+    float smooth_weight_crystal_{0.0f};
+    float smooth_weight_cyber_{0.0f};
+    float smooth_weight_dubstep_{0.0f};
+    float smooth_valence_{0.65f};
+    float smooth_arousal_{0.0f};
 
     // Fast-path Leaky Integrators for Muscle / DSP excitation
     float smooth_dilation_{0.0f};

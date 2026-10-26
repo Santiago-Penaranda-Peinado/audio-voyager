@@ -7,7 +7,8 @@
 namespace audio_voyager::director {
 
 AutonomousArtDirector::AutonomousArtDirector() {
-    glm::vec2 t0 = get_track_spline(0.0f);
+    smooth_curvature_scale_ = 0.0f;
+    glm::vec2 t0 = get_track_spline(0.0f, 0.0f);
     suspension_y_.reset(t0.y);
     suspension_x_.reset(t0.x);
     suspension_roll_.reset(0.0f);
@@ -31,10 +32,22 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
     smooth_speed_ += (target_speed - smooth_speed_) * (1.0f - std::exp(-director_speed_rate * dt));
     current_z_ += smooth_speed_ * dt;
 
-    // 2. World-Space Spline Sampling C(z) = (curve_x(z), curve_y(z))
-    glm::vec2 track_now    = get_track_spline(current_z_);
-    glm::vec2 track_deriv2 = get_track_spline_deriv2(current_z_);
-    glm::vec2 track_entity = get_track_spline(current_z_ + 8.0f);
+    // 1.5. Musical Curvature: 100% audio reactive, straight in silence / quiet passages
+    float target_curvature = 0.0f;
+    if (!semantic.is_silent) {
+        float dynamic_energy = semantic.arousal * 0.65f + semantic.elastic_dilation * 0.35f + semantic.melodic_mids * 0.25f + semantic.gear_shift_pulse * 0.30f;
+        target_curvature = std::clamp(dynamic_energy, 0.0f, 1.0f);
+    }
+    float curve_tau = semantic.is_silent ? 4.0f : 2.5f;
+    smooth_curvature_scale_ += (target_curvature - smooth_curvature_scale_) * (1.0f - std::exp(-curve_tau * dt));
+    if ((semantic.is_silent || target_curvature < 0.001f) && smooth_curvature_scale_ < 0.005f) {
+        smooth_curvature_scale_ = 0.0f;
+    }
+
+    // 2. World-Space Spline Sampling C(z) = (curve_x(z), curve_y(z)) scaled by audio energy
+    glm::vec2 track_now    = get_track_spline(current_z_, smooth_curvature_scale_);
+    glm::vec2 track_deriv2 = get_track_spline_deriv2(current_z_, smooth_curvature_scale_);
+    glm::vec2 track_entity = get_track_spline(current_z_ + 8.0f, smooth_curvature_scale_);
 
     // 3. Centrifugal Acceleration: Physical lateral acceleration outward from track curvature
     // a_centrifugal = -v^2 * (d^2 x / dz^2)
@@ -109,7 +122,7 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
     // 9. Look Direction: Proudly forward toward horizon, following winding spline track with speed-adaptive preview
     // USER REQUIREMENT: Camera must NOT pitch down excessively (never stare at floor!)
     float look_ahead_dist = std::clamp(18.0f + smooth_speed_ * 0.45f, 20.0f, 36.0f);
-    glm::vec2 track_look_dyn = get_track_spline(current_z_ + look_ahead_dist);
+    glm::vec2 track_look_dyn = get_track_spline(current_z_ + look_ahead_dist, smooth_curvature_scale_);
     glm::vec3 look_target(
         track_look_dyn.x,
         track_look_dyn.y + 0.10f + suspension_pitch_.pos,
@@ -144,11 +157,12 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
     if (std::isnan(camera_pos_.x) || std::isnan(camera_pos_.y) || std::isnan(camera_pos_.z) ||
         std::isinf(camera_pos_.x) || std::isinf(camera_pos_.y) || std::isinf(camera_pos_.z)) {
         current_z_ = 0.0f;
-        glm::vec2 t0 = get_track_spline(0.0f);
+        glm::vec2 t0 = get_track_spline(0.0f, 0.0f);
         camera_pos_ = glm::vec3(t0.x, t0.y, 0.0f);
         camera_dir_ = glm::vec3(0.0f, 0.0f, 1.0f);
         camera_up_ = glm::vec3(0.0f, 1.0f, 0.0f);
         smooth_roll_ = 0.0f;
+        smooth_curvature_scale_ = 0.0f;
         suspension_y_.reset(t0.y);
         suspension_x_.reset(t0.x);
         suspension_roll_.reset(0.0f);
