@@ -89,6 +89,7 @@ public:
     [[nodiscard]] glm::vec3 get_laser_pos() const noexcept { return laser_pos_; }
     [[nodiscard]] float get_trauma() const noexcept { return trauma_; }
     [[nodiscard]] float get_curvature_scale() const noexcept { return smooth_curvature_scale_; }
+    [[nodiscard]] float get_arch_emergence() const noexcept { return smooth_arch_emergence_; }
 
     [[nodiscard]] glm::mat4 get_view_matrix() const;
     [[nodiscard]] glm::mat4 get_projection_matrix(float aspect) const;
@@ -112,6 +113,7 @@ private:
     float smooth_roll_{0.0f};
     float smooth_speed_{7.5f};
     float smooth_curvature_scale_{0.0f};
+    float smooth_arch_emergence_{0.0f};
     float trauma_{0.0f};
 
     // Onset edge trigger and refractory re-arm state

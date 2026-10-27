@@ -8,6 +8,7 @@ namespace audio_voyager::director {
 
 AutonomousArtDirector::AutonomousArtDirector() {
     smooth_curvature_scale_ = 0.0f;
+    smooth_arch_emergence_ = 0.0f;
     glm::vec2 t0 = get_track_spline(0.0f, 0.0f);
     suspension_y_.reset(t0.y);
     suspension_x_.reset(t0.x);
@@ -43,6 +44,20 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
     if ((semantic.is_silent || target_curvature < 0.001f) && smooth_curvature_scale_ < 0.005f) {
         smooth_curvature_scale_ = 0.0f;
     }
+
+    // 1.6. Physical Bass-Guided Architecture Emergence with Asymmetric Envelope Follower
+    float bass_drive = std::clamp(semantic.elastic_dilation * 0.85f + semantic.emission_pulse * 0.65f + (semantic.is_onset ? 0.30f : 0.0f), 0.0f, 1.0f);
+    float biome_arch_mask = std::clamp(1.0f - semantic.weight_liquid * 0.85f, 0.0f, 1.0f);
+    float target_arch = semantic.is_silent ? 0.0f : (bass_drive * biome_arch_mask);
+
+    if (target_arch > smooth_arch_emergence_) {
+        float alpha_attack = 1.0f - std::exp(-dt / 0.25f);
+        smooth_arch_emergence_ += (target_arch - smooth_arch_emergence_) * alpha_attack;
+    } else {
+        float alpha_decay = 1.0f - std::exp(-dt / 3.0f);
+        smooth_arch_emergence_ += (target_arch - smooth_arch_emergence_) * alpha_decay;
+    }
+    smooth_arch_emergence_ = std::clamp(smooth_arch_emergence_, 0.0f, 1.0f);
 
     // 2. World-Space Spline Sampling C(z) = (curve_x(z), curve_y(z)) scaled by audio energy
     glm::vec2 track_now    = get_track_spline(current_z_, smooth_curvature_scale_);
@@ -163,6 +178,7 @@ void AutonomousArtDirector::update(const core::AudioSemanticVector& semantic, fl
         camera_up_ = glm::vec3(0.0f, 1.0f, 0.0f);
         smooth_roll_ = 0.0f;
         smooth_curvature_scale_ = 0.0f;
+        smooth_arch_emergence_ = 0.0f;
         suspension_y_.reset(t0.y);
         suspension_x_.reset(t0.x);
         suspension_roll_.reset(0.0f);

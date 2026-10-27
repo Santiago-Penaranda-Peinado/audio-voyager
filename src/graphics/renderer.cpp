@@ -300,10 +300,26 @@ void Renderer::render_frame(const core::PhysicsAudioState& audio_state) {
     ubo_data.color_accent[2] = semantic.color_accent.b;
     ubo_data.color_accent[3] = semantic.weight_crystal; // Celestial biome weight
 
+    // Physical Bass-Guided Architecture Emergence with Asymmetric Envelope Follower
+    float dilation_val = std::max(semantic.elastic_dilation, std::max(audio_state.stream_b.band_sub_bass, audio_state.stream_b.band_bass));
+    bool is_onset = semantic.is_onset || audio_state.stream_b.is_onset;
+    float bass_drive = std::clamp(dilation_val * 0.85f + semantic.emission_pulse * 0.65f + (is_onset ? 0.30f : 0.0f), 0.0f, 1.0f);
+    float biome_arch_mask = std::clamp(1.0f - semantic.weight_liquid * 0.85f, 0.0f, 1.0f);
+    float target_arch = (semantic.is_silent || audio_state.stream_b.rms < 0.005f) ? 0.0f : (bass_drive * biome_arch_mask);
+
+    if (target_arch > smooth_arch_emergence_) {
+        float alpha_attack = 1.0f - std::exp(-dt / 0.25f);
+        smooth_arch_emergence_ += (target_arch - smooth_arch_emergence_) * alpha_attack;
+    } else {
+        float alpha_decay = 1.0f - std::exp(-dt / 3.0f);
+        smooth_arch_emergence_ += (target_arch - smooth_arch_emergence_) * alpha_decay;
+    }
+    smooth_arch_emergence_ = std::clamp(smooth_arch_emergence_, 0.0f, 1.0f);
+
     ubo_data.color_zenith[0] = semantic.color_zenith.r;
     ubo_data.color_zenith[1] = semantic.color_zenith.g;
     ubo_data.color_zenith[2] = semantic.color_zenith.b;
-    ubo_data.color_zenith[3] = 1.0f;
+    ubo_data.color_zenith[3] = smooth_arch_emergence_;
 
     glBindBuffer(GL_UNIFORM_BUFFER, raymarching_ubo_);
     glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(RaymarchingUboData), &ubo_data);

@@ -78,20 +78,22 @@ float sdf_liquid(vec3 p, vec3 cam_p, float dilation, float mids, float is_silent
     float wave_scale = 1.0 - is_silent * 0.95;
 
     // Harmonic multi-octave liquid waves with high amplitude reaction to sub-bass
-    float wave1 = sin(p.x * 0.35 + time * 1.4) * cos(p.z * 0.28 + time * 1.0) * (0.55 * wave_scale + dilation * 0.85);
-    float wave2 = sin((p.x + p.z) * 0.70 + time * 2.0) * (0.28 * wave_scale + mids * 0.45);
-    float wave_bass = sin(length(p_rel) * 0.25 - time * 3.0) * (dilation * 0.75 * wave_scale);
+    // Smooth and continuous (|grad| < 0.7) with concentric sub-bass ripples from track spline
+    float wave1 = sin(p.x * 0.35 + time * 1.4) * cos(p.z * 0.28 + time * 1.0) * (0.45 * wave_scale + dilation * 0.55);
+    float wave2 = sin((p.x + p.z) * 0.55 + time * 2.0) * (0.22 * wave_scale + mids * 0.35);
+    float wave_bass = sin(length(p_rel) * 0.25 - time * 3.0) * (dilation * 0.50 * wave_scale);
     float ocean_y = (track_c.y - 2.4) + (wave1 + wave2 + wave_bass);
     float d_ocean = p.y - ocean_y;
 
     // Floating bioluminescent mercury dew pearls flanking spline path (only during active music)
     float d_liq_geom = d_ocean;
     if (is_silent < 0.8) {
+        float orb_id = floor((p.z + 7.0) / 14.0);
         vec3 q_orb = vec3(p_rel.x, p_rel.y, mod(p.z + 7.0, 14.0) - 7.0);
         q_orb.x = abs(q_orb.x) - (4.8 + dilation * 0.6);
-        q_orb.y = p_rel.y - (0.4 + 0.8 * sin(p.z * 0.35 + time * 1.3));
+        q_orb.y = p_rel.y - (0.4 + 0.8 * sin(orb_id * 1.8 + time * 1.3));
         float d_orb = length(q_orb) - (0.95 + dilation * 0.50 + mids * 0.30);
-        d_liq_geom = smin(d_ocean, d_orb, 1.10);
+        d_liq_geom = smin(d_ocean, d_orb, 1.25);
     }
 
     // Dual Flight Corridor Protection (track spline corridor + local near-camera safety bubble)
@@ -114,27 +116,32 @@ float sdf_metal(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     float chasm_width = 3.8 + dilation * 0.6;
     float d_walls = chasm_width - abs(p_rel.x);
 
-    // 2. Chasm Floor with jagged razor crags and glowing magma seams below track
-    float ground_crags = abs(sin(p.x * 1.8) * cos(p.z * 1.4)) * (0.8 + dilation * 1.4 + mids * 0.5);
-    float d_ground = p.y - ((track_c.y - 2.6) + ground_crags);
+    // 2. Chasm Floor with sharp angular obsidian crags (* 0.65 relaxation for raymarching stability)
+    float crag_shape = (1.0 - abs(sin(p.x * 1.8 + sin(p.z * 0.7)))) * abs(cos(p.z * 1.4));
+    float ground_crags = crag_shape * (0.8 + dilation * 1.4 + mids * 0.5);
+    float d_ground = (p.y - ((track_c.y - 2.6) + ground_crags)) * 0.65;
 
-    // 3. Towering Obsidian Monoliths & Angular Spires flanking track
+    // 3. Towering Obsidian Crystal Spires (Lipschitz octahedra, cell-indexed rotation)
+    float spire_id = floor((p.z + 4.0) / 8.0);
     vec3 q_spire;
     q_spire.x = abs(p_rel.x) - (3.4 + dilation * 0.5);
     q_spire.y = p_rel.y;
     q_spire.z = mod(p.z + 4.0, 8.0) - 4.0;
+    float z_spire_cell = q_spire.z;
 
-    // Twist with guitar distortion
-    q_spire.xy = rot(p.z * 0.25 + time * 0.4) * q_spire.xy;
-    q_spire.yz = rot(mids * 0.8) * q_spire.yz;
+    // Discrete cell rotation keeps spires bounded within [-4.0, +4.0] in Z
+    q_spire.xy = rot(spire_id * 0.45 + time * 0.4) * q_spire.xy;
+    q_spire.yz = rot(mids * 0.45) * q_spire.yz;
 
-    vec3 d_shard = abs(q_spire) - vec3(0.55 + mids * 0.35, 3.8 + dilation * 0.8, 0.55 + mids * 0.35);
-    float d_monolith = max(d_shard.x, max(d_shard.y, d_shard.z));
+    float octa_spire = (abs(q_spire.x) + abs(q_spire.y * 0.22) + abs(q_spire.z) - (0.85 + mids * 0.40)) * 0.57735027;
+    float d_monolith = max(octa_spire, max(abs(q_spire.z) - 3.2, abs(z_spire_cell) - 3.6));
 
-    // 4. Floating angular dagger shards flanking track
+    // 4. Floating razor dagger shards pointing diagonally toward corridor
+    float dagger_id = floor((p.z + 3.0) / 6.0);
     vec3 q_dagger = vec3(abs(p_rel.x) - (2.8 + dilation * 0.4), abs(p_rel.y) - 0.8, mod(p.z + 3.0, 6.0) - 3.0);
-    q_dagger.xy = rot(time * 0.8 + p.z * 0.4) * q_dagger.xy;
-    float d_dagger = max(abs(q_dagger.x) + abs(q_dagger.y) - (0.4 + mids * 0.2), abs(q_dagger.z) - 1.2);
+    q_dagger.xy = rot(time * 0.8 + dagger_id * 0.6) * q_dagger.xy;
+    float octa_dagger = (abs(q_dagger.x) + abs(q_dagger.y) + abs(q_dagger.z) - (0.50 + mids * 0.30)) * 0.57735027;
+    float d_dagger = max(octa_dagger, abs(q_dagger.z) - 1.8);
 
     float d_canyon_geom = min(d_walls, min(d_ground, min(d_monolith, d_dagger)));
 
@@ -156,10 +163,11 @@ float sdf_cyber(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     vec2 q_xy = abs(p_rel);
     float d_corridor = (3.8 + dilation * 0.6) - max(q_xy.x, q_xy.y);
 
-    // Giant Audio-Reactive Equalizer Towers rising from floor & ceiling
+    // Audio-Reactive Equalizer Towers with synchronized cell index eq_id
+    float eq_id = floor((p.z + 1.8) / 3.6);
     vec3 q_eq = vec3(p_rel.x, p_rel.y, mod(p.z + 1.8, 3.6) - 1.8);
-    float eq_height = 0.6 + 2.2 * (dilation * 1.4 + mids * 0.8) * abs(sin(floor(p.z / 3.6) * 1.4 + time * 5.0));
-    vec3 d_eq_box = abs(vec3(abs(q_eq.x) - 3.0, abs(q_eq.y) - (3.6 - eq_height * 0.5), q_eq.z)) - vec3(0.40, eq_height * 0.5, 0.40);
+    float eq_height = 0.6 + 2.2 * (dilation * 1.4 + mids * 0.8) * abs(sin(eq_id * 1.4 + time * 5.0));
+    vec3 d_eq_box = abs(vec3(abs(q_eq.x) - 3.0, abs(q_eq.y) - (3.6 - eq_height * 0.5), q_eq.z)) - vec3(0.40, eq_height * 0.5, 0.55);
     float d_eq = max(d_eq_box.x, max(d_eq_box.y, d_eq_box.z));
 
     // Periodic Quantum Accelerator Gate Rings every 6 meters around track spline
@@ -195,6 +203,10 @@ float sdf_dubstep(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     float tunnel_radius = 3.6 + dilation * 0.8 + wobble;
     float d_void_tunnel = tunnel_radius - length(p_rel);
 
+    // Continuous sub-bass groove modulation (replaces discontinuous step to eliminate tear artifacts)
+    float bass_groove = 0.06 * sin(p.z * 3.0 - time * 12.0) * dilation;
+    d_void_tunnel = (d_void_tunnel + bass_groove) * 0.85;
+
     // 2. Heavy Hexagonal Quantum Gravity Rings every 4 meters around track spline
     vec3 q_ring = vec3(p_rel.x, p_rel.y, mod(p.z + 2.0, 4.0) - 2.0);
     vec2 p_hex = abs(q_ring.xy);
@@ -207,10 +219,6 @@ float sdf_dubstep(vec3 p, vec3 cam_p, float dilation, float mids, float time) {
     vec3 box_dim = vec3(0.45, 1.2 + dilation * 1.5 + mids * 0.6, 0.45);
     vec3 d_b = abs(q_res) - box_dim;
     float d_resonator = max(d_b.x, max(d_b.y, d_b.z));
-
-    // 4. Glitch Fractures: Step quantizer along tunnel surface
-    float glitch_step = 0.08 * sin(floor(p.z * 4.0) * 1.7 + time * 15.0) * step(0.4, dilation);
-    d_void_tunnel += glitch_step;
 
     float d_dub_geom = min(d_void_tunnel, min(d_ring_segment, d_resonator));
 
@@ -235,9 +243,10 @@ float sdf_celestial(vec3 p, vec3 cam_p, float dilation, float mids, float is_sil
     float causeway_width = 4.2 + dilation * 0.5;
     float d_floor = max(d_causeway, abs(p_rel.x) - causeway_width);
 
-    // 2. Floating Crystalline Asteroids flanking track (Tumbling Octahedra)
+    // 2. Floating Crystalline Asteroids flanking track (Tumbling Octahedra, cell-synchronized)
+    float ast_id = floor((p.z + 9.0) / 18.0);
+    float ast_side = (mod(ast_id, 2.0) < 1.0) ? 1.0 : -1.0;
     vec3 q_ast = vec3(p_rel.x, p_rel.y, mod(p.z + 9.0, 18.0) - 9.0);
-    float ast_side = sign(sin(p.z * 0.18));
     q_ast.x -= ast_side * (4.6 + dilation * 0.6);
     q_ast.y -= (0.8 + 1.2 * sin(p.z * 0.25 + time * 0.9));
     q_ast.xy = rot(p.z * 0.2 + time * 0.4) * q_ast.xy;
@@ -274,16 +283,20 @@ float sdf_architecture(vec3 p, vec3 cam_p, float dilation, float mids, float rip
     vec2 track_c = get_track_spline(p.z);
     vec2 p_rel = p.xy - track_c;
 
+    // Physical kinematic emergence: sinks smoothly under ground when calm
+    float sink_offset = (1.0 - emergence) * (1.0 - emergence) * 4.5;
+    vec2 p_arch = vec2(p_rel.x, p_rel.y + sink_offset);
+
     // 1. Neon Rhythmic Gate Portals / Monumental Arches recurring every 16m
     float gate_spacing = 16.0;
     float gate_z = mod(p.z + 8.0, gate_spacing) - 8.0;
     float r_gate = 2.65 + dilation * 0.50 + ripple * 0.30;
     float arch_depth = 0.32 + ripple * 0.12;
-    float r_xy = length(p_rel);
+    float r_xy = length(p_arch);
     float arch_torus = max(abs(r_xy - r_gate) - 0.20, abs(gate_z) - arch_depth);
-    vec2 p_pillar = vec2(abs(p_rel.x) - r_gate, p_rel.y + 1.0);
+    vec2 p_pillar = vec2(abs(p_arch.x) - r_gate, p_arch.y + 1.0);
     float arch_pillars = max(max(abs(p_pillar.x) - 0.24, abs(p_pillar.y) - 1.4), abs(gate_z) - arch_depth);
-    float d_gate_arch = min(arch_torus, arch_pillars) + (1.0 - emergence) * 6.0;
+    float d_gate_arch = min(arch_torus, arch_pillars);
 
     // 2. Audio-Reactive Floating Equalizer Monoliths / Totems recurring every 6m
     float totem_spacing = 6.0;
@@ -292,12 +305,12 @@ float sdf_architecture(vec3 p, vec3 cam_p, float dilation, float mids, float rip
     float wave_phase = cell_z * 0.75 + time * 3.5;
     float totem_h = 1.1 + 2.2 * (dilation * 0.65 + mids * 0.75) * (0.65 + 0.35 * sin(wave_phase));
     float bevel = 0.04 + 0.04 * dilation;
-    vec3 q_totem = vec3(abs(p_rel.x) - (3.45 + dilation * 0.35), p_rel.y - (totem_h * 0.5 - 1.1), totem_z);
+    vec3 q_totem = vec3(abs(p_rel.x) - (3.45 + dilation * 0.35), p_arch.y - (totem_h * 0.5 - 1.1), totem_z);
     vec3 b_totem = vec3(0.30, totem_h * 0.5, 0.30) - bevel;
     vec3 d_box = abs(q_totem) - b_totem;
     float d_monolith = length(max(d_box, vec3(0.0))) + min(max(d_box.x, max(d_box.y, d_box.z)), 0.0) - bevel;
     float eq_stripes = abs(sin(q_totem.y * 6.0)) * 0.03;
-    d_monolith += eq_stripes + (1.0 - emergence) * 6.0;
+    d_monolith += eq_stripes;
 
     // 3. 3D Extruded Holographic Energy Rails / Guardrails along spline C(z)
     float rail_x_offset = 2.22 + dilation * 0.15;
@@ -316,7 +329,7 @@ float sdf_architecture(vec3 p, vec3 cam_p, float dilation, float mids, float rip
     float pylon_z = mod(p.z + 2.0, 4.0) - 2.0;
     vec2 p_strut = vec2(abs(p_rel.x) - (rail_x_offset + 0.45), p_rel.y - (-1.15));
     float d_strut = max(max(abs(p_strut.x) - 0.50, abs(p_strut.y) - 0.05), abs(pylon_z) - 0.07);
-    float d_rails = min(min(d_rails_lower, d_rails_upper), d_strut) + (1.0 - emergence) * 4.0;
+    float d_rails = min(min(d_rails_lower, d_rails_upper), d_strut);
 
     return min(d_gate_arch, min(d_monolith, d_rails));
 }
@@ -380,28 +393,24 @@ float map(vec3 p) {
     }
 
     // Sculpt 3D tunnel/terrain walls using 2D Waterfall energy matrix along track spline
+    // Modulated primarily to lateral walls, attenuated in Liquid biome, with safe gain (0.28)
     float forward_t = clamp((p.z - cam_p.z) / 45.0, 0.0, 1.0);
     float angle = (dot(p_rel, p_rel) > 1e-7) ? atan(p_rel.y, p_rel.x) : 0.0;
     float freq_u = fract(angle / 6.2831853 + 0.5);
     float wf_energy = textureLod(u_waterfall_energy, vec2(freq_u, forward_t), 0.0).r;
-    d_interpolated -= wf_energy * 0.45 * (1.0 - is_silent);
+    float wall_sculpt_mask = smoothstep(1.8, 3.2, abs(p_rel.x)) * (1.0 - w_liquid * 0.75);
+    d_interpolated -= wf_energy * 0.28 * wall_sculpt_mask * (1.0 - is_silent);
 
-    // Transient Onset Shockwave Ripple
+    // Transient Onset Shockwave Ripple (clean pressure wave, Lipschitz compliant)
     if (ripple > 0.01) {
         float r = length(p - cam_p);
-        float shock = sin(r * 4.5 - time * 20.0) * exp(-0.25 * r) * ripple * 0.60;
+        float shock = sin(r * 1.8 - time * 20.0) * exp(-0.25 * r) * ripple * 0.18;
         d_interpolated += shock;
     }
 
     // Dynamic Procedural 3D Architecture (Portals, Totems, Rails)
-    // Emerges dynamically to punctuate high speed sprints, beat drops, and rhythmic peaks
-    float arch_emergence = 0.0;
-    if (is_silent < 0.5) {
-        float speed_factor = smoothstep(8.5, 20.0, u_cam_up.w);
-        float rhythm_drive = max(dilation, ripple);
-        float genre_bias   = max(w_cyber * 0.35, max(w_metal * 0.25, w_dubstep * 0.30));
-        arch_emergence = clamp(speed_factor * 0.60 + rhythm_drive * 0.70 + u_laser_pos.w * 0.40 + genre_bias, 0.0, 1.0);
-    }
+    // Read directly from physical bass-driven UBO channel u_color_zenith.w
+    float arch_emergence = clamp(u_color_zenith.w, 0.0, 1.0) * (1.0 - is_silent);
     float d_world = d_interpolated;
     if (arch_emergence > 0.01) {
         float d_architecture = sdf_architecture(p, cam_p, dilation, mids, ripple, time, arch_emergence);
@@ -551,6 +560,11 @@ void main() {
 
     if (hit) {
         vec3 n = calcNormal(p);
+        // Metal Biome: Faceted obsidian crystal normal
+        if (w_metal > 0.05) {
+            vec3 facet_n = normalize(floor(n * 5.0 + 0.5) / 5.0);
+            n = normalize(mix(n, facet_n, 0.45 * w_metal));
+        }
         float ao = calcAO(p, n);
 
         vec2 track_c = get_track_spline(p.z);
@@ -559,10 +573,14 @@ void main() {
 
         // Ground/Floor detection: surfaces pointing upwards near track floor
         float is_ground = smoothstep(0.15, 0.65, n.y) * step(p.y, track_c.y + 0.5);
+        float is_floor = is_ground;
         // Wall detection: vertical surfaces on corridor edges
         float is_wall = smoothstep(0.30, 0.80, abs(n.x));
 
         vec3 view_dir = -rd;
+
+        // Distance-dependent anti-Moiré high-frequency attenuation
+        float hf_fade = exp(-0.035 * t);
 
         // =========================================================================
         // USER REQUIREMENT: High-Frequency Reactive Micro-Details at 100% Saturation / High Speed
@@ -586,7 +604,7 @@ void main() {
             cos(p_micro.y * 1.5 + time * 2.8),
             sin(p_micro.z + time * 3.0) * cos(p_micro.x * 1.4)
         );
-        float pert_strength = 0.06 * (treble_sparkle * 1.8 + melodic_mids * 0.9) * (0.4 + 0.8 * micro_boost) * (1.0 - is_silent);
+        float pert_strength = 0.06 * (treble_sparkle * 1.8 + melodic_mids * 0.9) * (0.4 + 0.8 * micro_boost) * (1.0 - is_silent) * hf_fade;
         vec3 micro_n = (pert_strength > 0.001) ? normalize(n + micro_pert * pert_strength) : n;
 
         // 1. Camera Forward Searchlight / Cockpit Headlight
@@ -647,8 +665,8 @@ void main() {
             float side_rails  = smoothstep(0.10, 0.02, abs(dist_center - 2.0));
             float outer_curb  = smoothstep(0.12, 0.02, abs(dist_center - 3.2));
             float cyber_angle = (dot(track_offset, track_offset) > 1e-7) ? atan(track_offset.y, track_offset.x) : 0.0;
-            float grid_cross  = smoothstep(0.88, 0.98, sin(p.z * 1.57079));
-            float wall_ribs   = smoothstep(0.85, 0.98, sin(cyber_angle * 6.0));
+            float grid_cross  = smoothstep(0.88, 0.98, sin(p.z * 1.57079)) * hf_fade;
+            float wall_ribs   = smoothstep(0.85, 0.98, sin(cyber_angle * 6.0)) * hf_fade;
 
             float cyber_floor = is_ground * (center_lane * 2.8 + side_rails * 1.8 + outer_curb * 1.2 + grid_cross * 0.8);
             float cyber_walls = is_wall * (wall_ribs * 1.4 + grid_cross * 0.6);
@@ -659,8 +677,8 @@ void main() {
         if (w_metal > 0.12 && is_silent < 0.5) {
             // Obsidian Chasm: glowing magma fissure along spline center, basalt spire veins
             float center_fissure = smoothstep(0.60, 0.05, dist_center) * smoothstep(0.30, 0.95, abs(sin(p.z * 0.8 + sin(p.x * 2.0))));
-            float magma_vein = smoothstep(0.55, 0.95, abs(sin(p.x * 2.2 + sin(p.z * 0.8) * 1.5) * cos(p.z * 1.2)));
-            float spire_vein = smoothstep(0.65, 0.96, abs(sin(p.y * 3.0 + p.z * 0.5)));
+            float magma_vein = smoothstep(0.55, 0.95, abs(sin(p.x * 2.2 + sin(p.z * 0.8) * 1.5) * cos(p.z * 1.2))) * hf_fade;
+            float spire_vein = smoothstep(0.65, 0.96, abs(sin(p.y * 3.0 + p.z * 0.5))) * hf_fade;
 
             float metal_floor = is_ground * (center_fissure * 3.0 + magma_vein * 1.6);
             float metal_walls = is_wall * (spire_vein * 1.5 + magma_vein * 0.8);
@@ -703,15 +721,20 @@ void main() {
 
         biome_accent_pattern *= (0.2 + 0.8 * arousal) * (1.0 - is_silent);
 
+        // Metal Biome: Incandescent magma veins in deep crevices (ao < 0.45)
+        float magma_crevice = smoothstep(0.45, 0.12, ao) * w_metal;
+        vec3 magma_glow = vec3(1.0, 0.30, 0.04) * (magma_crevice * (2.4 + emission_pulse * 1.6) * (1.0 - is_silent));
+
+        // Liquid Silk Ocean: Specular Fresnel sheen reflecting celestial sky
+        float liq_fresnel = pow(clamp(1.0 - max(dot(n, view_dir), 0.0), 0.0, 1.0), 4.0);
+        vec3 liq_refl = mix(sky_color * 1.3, vec3(0.4, 0.85, 1.0) * (0.8 + emission_pulse * 0.5), 0.35);
+        vec3 liq_specular = liq_refl * (liq_fresnel * 2.2 * is_floor * w_liquid * (1.0 - is_silent * 0.6));
+
         // Phase 2 & 3: 3D Procedural Architecture Neon Illumination & Shading
-        // Dynamic Emergence: Portals and totems only illuminate when emerged
-        float arch_emergence = 0.0;
-        if (is_silent < 0.5) {
-            float speed_factor = smoothstep(8.5, 20.0, u_cam_up.w);
-            float rhythm_drive = max(dilation, ripple);
-            float genre_bias   = max(w_cyber * 0.35, max(w_metal * 0.25, w_dubstep * 0.30));
-            arch_emergence = clamp(speed_factor * 0.60 + rhythm_drive * 0.70 + arousal * 0.40 + genre_bias, 0.0, 1.0);
-        }
+        // Dynamic Emergence: Read directly from physical bass-driven UBO channel
+        float arch_emergence = clamp(u_color_zenith.w, 0.0, 1.0) * (1.0 - is_silent);
+        float arch_fade = smoothstep(0.05, 0.65, arch_emergence) * smoothstep(130.0, 70.0, t);
+        float arch_sink = (1.0 - arch_emergence) * (1.0 - arch_emergence) * 4.5;
 
         // Sonic Shockwave Rings & Pulse Portals along Spline Track
         // Emerges dynamically ONLY during explosive drum kicks, drops and high rhythm surges
@@ -722,14 +745,15 @@ void main() {
             float pulse_ring = smoothstep(0.30, 0.0, abs(ring_phase));
             float r_dist = length(track_offset);
             float portal_edge = smoothstep(0.25, 0.0, abs(r_dist - (2.7 + dilation * 0.5)));
-            sonic_portal = pulse_ring * portal_edge * ripple * 3.5 * arch_emergence;
+            sonic_portal = pulse_ring * portal_edge * ripple * 3.5 * arch_fade;
         }
 
         // 1. Neon Gate Portals / Monumental Arches Shading
         float gate_z_dist = abs(mod(p.z + 8.0, 16.0) - 8.0);
         float is_gate = smoothstep(0.40, 0.04, gate_z_dist);
-        float gate_edge = smoothstep(0.24, 0.02, abs(length(track_offset) - (2.65 + dilation * 0.50)));
-        float pillar_edge = smoothstep(0.24, 0.02, abs(abs(track_offset.x) - (2.65 + dilation * 0.50))) * step(-2.4, track_offset.y) * step(track_offset.y, 0.5);
+        vec2 p_rel_gate = vec2(track_offset.x, track_offset.y + arch_sink);
+        float gate_edge = smoothstep(0.24, 0.02, abs(length(p_rel_gate) - (2.65 + dilation * 0.50)));
+        float pillar_edge = smoothstep(0.24, 0.02, abs(abs(p_rel_gate.x) - (2.65 + dilation * 0.50))) * step(-2.4, p_rel_gate.y) * step(p_rel_gate.y, 0.5);
         float arch_structure = max(gate_edge, pillar_edge);
         vec3 gate_neon = accent_color * (is_gate * arch_structure * 1.45 * (1.0 + ripple * 0.70 + emission_pulse * 0.50));
 
@@ -753,28 +777,29 @@ void main() {
         float cell_z_sh = floor((p.z + 3.0) / 6.0);
         float totem_h_sh = 1.1 + 2.2 * (dilation * 0.65 + melodic_mids * 0.75) * (0.65 + 0.35 * sin(cell_z_sh * 0.75 + time * 3.5));
         float totem_y_top = totem_h_sh - 1.1;
-        float is_totem_y = step(-1.15, track_offset.y) * step(track_offset.y, totem_y_top + 0.05);
+        float totem_y_eval = track_offset.y + arch_sink;
+        float is_totem_y = step(-1.15, totem_y_eval) * step(totem_y_eval, totem_y_top + 0.05);
         float is_totem = smoothstep(0.40, 0.05, totem_x_dist) * step(totem_z_dist, 0.45) * is_totem_y;
-        float bar_frac = clamp((track_offset.y + 1.1) / max(totem_h_sh, 0.1), 0.0, 1.0);
+        float bar_frac = clamp((totem_y_eval + 1.1) / max(totem_h_sh, 0.1), 0.0, 1.0);
         vec3 totem_bar_col = mix(synesthetic_color, accent_color, bar_frac);
-        float bar_grid = smoothstep(0.15, 0.85, sin(track_offset.y * 12.0));
+        float bar_grid = smoothstep(0.15, 0.85, sin(totem_y_eval * 12.0)) * mix(1.0, hf_fade, 0.6);
         vec3 totem_neon = totem_bar_col * (is_totem * bar_grid * (1.35 + dilation * 1.00 + melodic_mids * 0.65));
 
-        vec3 arch_emissive = (gate_neon + rail_neon + totem_neon) * (arch_emergence * (1.0 - is_silent));
+        vec3 arch_emissive = (gate_neon + rail_neon + totem_neon) * arch_fade;
 
         // Emissive light from track features, veins, sonic pulse portals, and 3D architecture
-        vec3 emissive = accent_color * ((track_glow * 1.8 + sonic_portal * 2.0)) * (1.0 - is_silent) + arch_emissive;
+        vec3 emissive = accent_color * ((track_glow * 1.8 + sonic_portal * 2.0)) * (1.0 - is_silent) + arch_emissive + magma_glow;
 
         // 2. High-Frequency Harmonic Vein Pulses (Razor-Sharp Veins, audio-reactive)
         float vein_phase = p.z * 8.0 + p.x * 5.0 + sin(p.y * 10.0);
-        float vein_pulse = smoothstep(0.965, 0.998, sin(vein_phase + time * (10.0 + treble_sparkle * 14.0)));
+        float vein_pulse = smoothstep(0.965, 0.998, sin(vein_phase + time * (10.0 + treble_sparkle * 14.0))) * hf_fade;
         float micro_vein = vein_pulse * (treble_sparkle * 2.4 + melodic_mids * 1.2) * (0.4 + 1.2 * micro_boost) * (1.0 - is_silent);
         vec3 micro_vein_emissive = mix(accent_color, u_color_primary.rgb, 0.40) * (micro_vein * 0.50);
 
         // 3. Acoustic Micro-Sparkles (High-Hat & Cymbal Surface Stardust, audio-reactive)
         float sparkle_cell = hash3(floor(p * 52.0));
         float sparkle_mask = step(0.91, sparkle_cell);
-        float sparkle_flash = abs(sin(sparkle_cell * 80.0 + time * 24.0));
+        float sparkle_flash = abs(sin(sparkle_cell * 80.0 + time * 24.0)) * hf_fade;
         float micro_sparkle = sparkle_mask * sparkle_flash * (treble_sparkle * 3.2) * (0.4 + 1.4 * micro_boost) * (1.0 - is_silent);
         vec3 micro_sparkle_emissive = mix(u_color_primary.rgb, accent_color, 0.70) * (micro_sparkle * 0.50);
 
@@ -787,19 +812,19 @@ void main() {
         // 5. Biome-Specific 100% Saturation Micro-Accents
         vec3 biome_micro_accents = vec3(0.0);
         if (w_liquid > 0.4) {
-            float liq_micro = smoothstep(0.85, 0.98, sin(p.x * 14.0 + time * 4.0) * cos(p.z * 14.0 - time * 3.0));
+            float liq_micro = smoothstep(0.85, 0.98, sin(p.x * 14.0 + time * 4.0) * cos(p.z * 14.0 - time * 3.0)) * hf_fade;
             biome_micro_accents += vec3(0.3, 0.7, 1.0) * (liq_micro * treble_sparkle * 1.8 * w_liquid * micro_boost);
         }
         if (w_metal > 0.4) {
-            float metal_micro = smoothstep(0.92, 0.99, abs(sin(p.x * 20.0 + sin(p.z * 12.0))));
+            float metal_micro = smoothstep(0.92, 0.99, abs(sin(p.x * 20.0 + sin(p.z * 12.0)))) * hf_fade;
             biome_micro_accents += vec3(1.0, 0.4, 0.1) * (metal_micro * (0.8 + emission_pulse * 1.5) * w_metal * micro_boost);
         }
         if (w_cyber > 0.4) {
-            float cyber_micro = step(0.94, fract(p.z * 6.0)) * step(0.90, fract(p.x * 6.0));
+            float cyber_micro = step(0.94, fract(p.z * 6.0)) * step(0.90, fract(p.x * 6.0)) * hf_fade;
             biome_micro_accents += vec3(0.1, 1.0, 0.8) * (cyber_micro * (1.0 + treble_sparkle * 2.0) * w_cyber * micro_boost);
         }
         if (w_dubstep > 0.4) {
-            float dub_micro = smoothstep(0.88, 0.99, sin(p.y * 16.0 + p.z * 16.0 + time * 18.0));
+            float dub_micro = smoothstep(0.88, 0.99, sin(p.y * 16.0 + p.z * 16.0 + time * 18.0)) * hf_fade;
             biome_micro_accents += vec3(0.9, 0.2, 1.0) * (dub_micro * (1.0 + emission_pulse * 1.8) * w_dubstep * micro_boost);
         }
 
@@ -816,7 +841,7 @@ void main() {
         vec3 total_micro = micro_specular + cam_headlight_glint + micro_vein_emissive + micro_sparkle_emissive + micro_rim_emissive + biome_micro_accents;
         vec3 ambient_light = albedo * ambient * ao;
         vec3 direct_light = albedo * (cam_headlight + laser_light);
-        vec3 reflective_light = (fresnel_rim + total_micro) * (0.35 + 0.65 * ao);
+        vec3 reflective_light = (fresnel_rim + total_micro + liq_specular) * (0.35 + 0.65 * ao);
         scene_color = ambient_light + direct_light + reflective_light + emissive;
 
         // Depth fog: Rich atmospheric aerial perspective past 35m into horizon sky

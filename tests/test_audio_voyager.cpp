@@ -30,19 +30,20 @@ float test_sdf_liquid(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, 
     glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
     glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
     float wave_scale = 1.0f - is_silent * 0.95f;
-    float wave1 = std::sin(p.x * 0.35f + time * 1.4f) * std::cos(p.z * 0.28f + time * 1.0f) * (0.55f * wave_scale + dilation * 0.85f);
-    float wave2 = std::sin((p.x + p.z) * 0.70f + time * 2.0f) * (0.28f * wave_scale + mids * 0.45f);
-    float wave_bass = std::sin(glm::length(p_rel) * 0.25f - time * 3.0f) * (dilation * 0.75f * wave_scale);
+    float wave1 = std::sin(p.x * 0.35f + time * 1.4f) * std::cos(p.z * 0.28f + time * 1.0f) * (0.45f * wave_scale + dilation * 0.55f);
+    float wave2 = std::sin((p.x + p.z) * 0.55f + time * 2.0f) * (0.22f * wave_scale + mids * 0.35f);
+    float wave_bass = std::sin(glm::length(p_rel) * 0.25f - time * 3.0f) * (dilation * 0.50f * wave_scale);
     float ocean_y = (track_c.y - 2.4f) + (wave1 + wave2 + wave_bass);
     float d_ocean = p.y - ocean_y;
 
     float d_liq_geom = d_ocean;
     if (is_silent < 0.8f) {
+        float orb_id = std::floor((p.z + 7.0f) / 14.0f);
         glm::vec3 q_orb(p_rel.x, p_rel.y, std::fmod(p.z + 7.0f, 14.0f) - 7.0f);
         q_orb.x = std::abs(q_orb.x) - (4.8f + dilation * 0.6f);
-        q_orb.y = p_rel.y - (0.4f + 0.8f * std::sin(p.z * 0.35f + time * 1.3f));
+        q_orb.y = p_rel.y - (0.4f + 0.8f * std::sin(orb_id * 1.8f + time * 1.3f));
         float d_orb = glm::length(q_orb) - (0.95f + dilation * 0.50f + mids * 0.30f);
-        d_liq_geom = smin(d_ocean, d_orb, 1.10f);
+        d_liq_geom = smin(d_ocean, d_orb, 1.25f);
     }
 
     float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
@@ -58,35 +59,38 @@ float test_sdf_metal(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, f
     float chasm_width = 3.8f + dilation * 0.6f;
     float d_walls = chasm_width - std::abs(p_rel.x);
 
-    float ground_crags = std::abs(std::sin(p.x * 1.8f) * std::cos(p.z * 1.4f)) * (0.8f + dilation * 1.4f + mids * 0.5f);
-    float d_ground = p.y - ((track_c.y - 2.6f) + ground_crags);
+    float crag_shape = (1.0f - std::abs(std::sin(p.x * 1.8f + std::sin(p.z * 0.7f)))) * std::abs(std::cos(p.z * 1.4f));
+    float ground_crags = crag_shape * (0.8f + dilation * 1.4f + mids * 0.5f);
+    float d_ground = (p.y - ((track_c.y - 2.6f) + ground_crags)) * 0.65f;
 
+    float spire_id = std::floor((p.z + 4.0f) / 8.0f);
     glm::vec3 q_spire;
     q_spire.x = std::abs(p_rel.x) - (3.4f + dilation * 0.5f);
     q_spire.y = p_rel.y;
     q_spire.z = std::fmod(p.z + 4.0f, 8.0f) - 4.0f;
+    float z_spire_cell = q_spire.z;
 
-    float s = std::sin(p.z * 0.25f + time * 0.4f), c = std::cos(p.z * 0.25f + time * 0.4f);
+    float s = std::sin(spire_id * 0.45f + time * 0.4f), c = std::cos(spire_id * 0.45f + time * 0.4f);
     glm::vec2 sp_xy(c * q_spire.x - s * q_spire.y, s * q_spire.x + c * q_spire.y);
     q_spire.x = sp_xy.x;
     q_spire.y = sp_xy.y;
 
-    float s_yz = std::sin(mids * 0.8f), c_yz = std::cos(mids * 0.8f);
+    float s_yz = std::sin(mids * 0.45f), c_yz = std::cos(mids * 0.45f);
     glm::vec2 sp_yz(c_yz * q_spire.y - s_yz * q_spire.z, s_yz * q_spire.y + c_yz * q_spire.z);
     q_spire.y = sp_yz.x;
     q_spire.z = sp_yz.y;
 
-    float d_shard_x = std::abs(q_spire.x) - (0.55f + mids * 0.35f);
-    float d_shard_y = std::abs(q_spire.y) - (3.8f + dilation * 0.8f);
-    float d_shard_z = std::abs(q_spire.z) - (0.55f + mids * 0.35f);
-    float d_monolith = std::max(d_shard_x, std::max(d_shard_y, d_shard_z));
+    float octa_spire = (std::abs(q_spire.x) + std::abs(q_spire.y * 0.22f) + std::abs(q_spire.z) - (0.85f + mids * 0.40f)) * 0.57735027f;
+    float d_monolith = std::max(octa_spire, std::max(std::abs(q_spire.z) - 3.2f, std::abs(z_spire_cell) - 3.6f));
 
+    float dagger_id = std::floor((p.z + 3.0f) / 6.0f);
     glm::vec3 q_dagger(std::abs(p_rel.x) - (2.8f + dilation * 0.4f), std::abs(p_rel.y) - 0.8f, std::fmod(p.z + 3.0f, 6.0f) - 3.0f);
-    float s_dag = std::sin(time * 0.8f + p.z * 0.4f), c_dag = std::cos(time * 0.8f + p.z * 0.4f);
+    float s_dag = std::sin(time * 0.8f + dagger_id * 0.6f), c_dag = std::cos(time * 0.8f + dagger_id * 0.6f);
     glm::vec2 dag_xy(c_dag * q_dagger.x - s_dag * q_dagger.y, s_dag * q_dagger.x + c_dag * q_dagger.y);
     q_dagger.x = dag_xy.x;
     q_dagger.y = dag_xy.y;
-    float d_dagger = std::max(std::abs(q_dagger.x) + std::abs(q_dagger.y) - (0.4f + mids * 0.2f), std::abs(q_dagger.z) - 1.2f);
+    float octa_dagger = (std::abs(q_dagger.x) + std::abs(q_dagger.y) + std::abs(q_dagger.z) - (0.50f + mids * 0.30f)) * 0.57735027f;
+    float d_dagger = std::max(octa_dagger, std::abs(q_dagger.z) - 1.8f);
 
     float d_canyon_geom = std::min(d_walls, std::min(d_ground, std::min(d_monolith, d_dagger)));
     float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
@@ -101,9 +105,10 @@ float test_sdf_cyber(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, f
     glm::vec2 q_xy = glm::abs(p_rel);
     float d_corridor = (3.8f + dilation * 0.6f) - std::max(q_xy.x, q_xy.y);
 
+    float eq_id = std::floor((p.z + 1.8f) / 3.6f);
     glm::vec3 q_eq(p_rel.x, p_rel.y, std::fmod(p.z + 1.8f, 3.6f) - 1.8f);
-    float eq_height = 0.6f + 2.2f * (dilation * 1.4f + mids * 0.8f) * std::abs(std::sin(std::floor(p.z / 3.6f) * 1.4f + time * 5.0f));
-    glm::vec3 d_eq_box = glm::abs(glm::vec3(std::abs(q_eq.x) - 3.0f, std::abs(q_eq.y) - (3.6f - eq_height * 0.5f), q_eq.z)) - glm::vec3(0.40f, eq_height * 0.5f, 0.40f);
+    float eq_height = 0.6f + 2.2f * (dilation * 1.4f + mids * 0.8f) * std::abs(std::sin(eq_id * 1.4f + time * 5.0f));
+    glm::vec3 d_eq_box = glm::abs(glm::vec3(std::abs(q_eq.x) - 3.0f, std::abs(q_eq.y) - (3.6f - eq_height * 0.5f), q_eq.z)) - glm::vec3(0.40f, eq_height * 0.5f, 0.55f);
     float d_eq = std::max(d_eq_box.x, std::max(d_eq_box.y, d_eq_box.z));
 
     glm::vec3 q_ring(p_rel.x, p_rel.y, std::fmod(p.z + 3.0f, 6.0f) - 3.0f);
@@ -129,6 +134,9 @@ float test_sdf_dubstep(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids,
     float tunnel_radius = 3.6f + dilation * 0.8f + wobble;
     float d_void_tunnel = tunnel_radius - glm::length(p_rel);
 
+    float bass_groove = 0.06f * std::sin(p.z * 3.0f - time * 12.0f) * dilation;
+    d_void_tunnel = (d_void_tunnel + bass_groove) * 0.85f;
+
     glm::vec3 q_ring(p_rel.x, p_rel.y, std::fmod(p.z + 2.0f, 4.0f) - 2.0f);
     glm::vec2 p_hex = glm::abs(glm::vec2(q_ring.x, q_ring.y));
     float hex_dist = std::max(p_hex.x * 0.866025f + p_hex.y * 0.5f, p_hex.y);
@@ -139,9 +147,6 @@ float test_sdf_dubstep(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids,
     glm::vec3 box_dim(0.45f, 1.2f + dilation * 1.5f + mids * 0.6f, 0.45f);
     glm::vec3 d_b = glm::abs(q_res) - box_dim;
     float d_resonator = std::max(d_b.x, std::max(d_b.y, d_b.z));
-
-    float glitch_step = 0.08f * std::sin(std::floor(p.z * 4.0f) * 1.7f + time * 15.0f) * (dilation >= 0.4f ? 1.0f : 0.0f);
-    d_void_tunnel += glitch_step;
 
     float d_dub_geom = std::min(d_void_tunnel, std::min(d_ring_segment, d_resonator));
     float d_track_corridor = glm::length(p_rel) - (2.6f + dilation * 0.3f);
@@ -162,8 +167,9 @@ float test_sdf_celestial(glm::vec3 p, glm::vec3 cam_p, float dilation, float mid
     float causeway_width = 4.2f + dilation * 0.5f;
     float d_floor = std::max(d_causeway, std::abs(p_rel.x) - causeway_width);
 
+    float ast_id = std::floor((p.z + 9.0f) / 18.0f);
+    float ast_side = (static_cast<int>(ast_id) & 1) ? -1.0f : 1.0f;
     glm::vec3 q_ast(p_rel.x, p_rel.y, std::fmod(p.z + 9.0f, 18.0f) - 9.0f);
-    float ast_side = std::sin(p.z * 0.18f) >= 0.0f ? 1.0f : -1.0f;
     q_ast.x -= ast_side * (4.6f + dilation * 0.6f);
     q_ast.y -= (0.8f + 1.2f * std::sin(p.z * 0.25f + time * 0.9f));
     float s_xy = std::sin(p.z * 0.2f + time * 0.4f), c_xy = std::cos(p.z * 0.2f + time * 0.4f);
@@ -200,16 +206,20 @@ float test_sdf_architecture(glm::vec3 p, glm::vec3 cam_p, float dilation, float 
     glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
     glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
 
+    // Physical kinematic emergence: sinks smoothly under ground when calm
+    float sink_offset = (1.0f - emergence) * (1.0f - emergence) * 4.5f;
+    glm::vec2 p_arch(p_rel.x, p_rel.y + sink_offset);
+
     // 1. Neon Rhythmic Gate Portals / Monumental Arches recurring every 16m
     float gate_spacing = 16.0f;
     float gate_z = std::fmod(p.z + 8.0f, gate_spacing) - 8.0f;
     float r_gate = 2.65f + dilation * 0.50f + ripple * 0.30f;
     float arch_depth = 0.32f + ripple * 0.12f;
-    float r_xy = glm::length(p_rel);
+    float r_xy = glm::length(p_arch);
     float arch_torus = std::max(std::abs(r_xy - r_gate) - 0.20f, std::abs(gate_z) - arch_depth);
-    glm::vec2 p_pillar(std::abs(p_rel.x) - r_gate, p_rel.y + 1.0f);
+    glm::vec2 p_pillar(std::abs(p_arch.x) - r_gate, p_arch.y + 1.0f);
     float arch_pillars = std::max(std::max(std::abs(p_pillar.x) - 0.24f, std::abs(p_pillar.y) - 1.4f), std::abs(gate_z) - arch_depth);
-    float d_gate_arch = std::min(arch_torus, arch_pillars) + (1.0f - emergence) * 6.0f;
+    float d_gate_arch = std::min(arch_torus, arch_pillars);
 
     // 2. Audio-Reactive Floating Equalizer Monoliths / Totems recurring every 6m
     float totem_spacing = 6.0f;
@@ -218,12 +228,12 @@ float test_sdf_architecture(glm::vec3 p, glm::vec3 cam_p, float dilation, float 
     float wave_phase = cell_z * 0.75f + time * 3.5f;
     float totem_h = 1.1f + 2.2f * (dilation * 0.65f + mids * 0.75f) * (0.65f + 0.35f * std::sin(wave_phase));
     float bevel = 0.04f + 0.04f * dilation;
-    glm::vec3 q_totem(std::abs(p_rel.x) - (3.45f + dilation * 0.35f), p_rel.y - (totem_h * 0.5f - 1.1f), totem_z);
+    glm::vec3 q_totem(std::abs(p_rel.x) - (3.45f + dilation * 0.35f), p_arch.y - (totem_h * 0.5f - 1.1f), totem_z);
     glm::vec3 b_totem = glm::vec3(0.30f, totem_h * 0.5f, 0.30f) - bevel;
     glm::vec3 d_box = glm::abs(q_totem) - b_totem;
     float d_monolith = glm::length(glm::max(d_box, glm::vec3(0.0f))) + std::min(std::max(d_box.x, std::max(d_box.y, d_box.z)), 0.0f) - bevel;
     float eq_stripes = std::abs(std::sin(q_totem.y * 6.0f)) * 0.03f;
-    d_monolith += eq_stripes + (1.0f - emergence) * 6.0f;
+    d_monolith += eq_stripes;
 
     // 3. 3D Extruded Holographic Energy Rails / Guardrails along spline C(z)
     float rail_x_offset = 2.22f + dilation * 0.15f;
@@ -242,7 +252,7 @@ float test_sdf_architecture(glm::vec3 p, glm::vec3 cam_p, float dilation, float 
     float pylon_z = std::fmod(p.z + 2.0f, 4.0f) - 2.0f;
     glm::vec2 p_strut(std::abs(p_rel.x) - (rail_x_offset + 0.45f), p_rel.y - (-1.15f));
     float d_strut = std::max(std::max(std::abs(p_strut.x) - 0.50f, std::abs(p_strut.y) - 0.05f), std::abs(pylon_z) - 0.07f);
-    float d_rails = std::min(std::min(d_rails_lower, d_rails_upper), d_strut) + (1.0f - emergence) * 4.0f;
+    float d_rails = std::min(std::min(d_rails_lower, d_rails_upper), d_strut);
 
     return std::min(d_gate_arch, std::min(d_monolith, d_rails));
 }
@@ -264,7 +274,7 @@ float test_map(glm::vec3 p, glm::vec3 cam_p, glm::vec4 weights, float dilation, 
 
     if (ripple > 0.01f) {
         float r = glm::length(p - cam_p);
-        float shock = std::sin(r * 4.5f - time * 20.0f) * std::exp(-0.25f * r) * ripple * 0.60f;
+        float shock = std::sin(r * 1.8f - time * 20.0f) * std::exp(-0.25f * r) * ripple * 0.18f;
         d_interp += shock;
     }
 
@@ -1692,6 +1702,77 @@ void test_procedural_3d_architectural_elements() {
         assert(d >= 2.0f);
     }
     std::cout << "  -> Camera flight corridor clearance strictly validated (d >= 2.0m) through all 3D architectural elements!\n";
+
+    // 20.5 Bass-Guided Physical Architecture Asymmetric Envelope & Kinematic Sinking Verification
+    director::AutonomousArtDirector arch_dir;
+    assert(arch_dir.get_arch_emergence() == 0.0f);
+
+    // Initial state: silence keeps emergence at 0.0f
+    core::AudioSemanticVector quiet_sem{};
+    quiet_sem.is_silent = true;
+    for (int i = 0; i < 20; ++i) {
+        arch_dir.update(quiet_sem, 0.02f);
+    }
+    assert(arch_dir.get_arch_emergence() == 0.0f);
+
+    // Explosive bass surge in Metal biome: fast attack (tau ~ 0.25s)
+    core::AudioSemanticVector bass_sem{};
+    bass_sem.is_silent = false;
+    bass_sem.elastic_dilation = 0.95f;
+    bass_sem.emission_pulse = 1.20f;
+    bass_sem.is_onset = true;
+    bass_sem.weight_metal = 1.0f;
+    bass_sem.weight_liquid = 0.0f;
+
+    for (int i = 0; i < 15; ++i) { // 0.30 seconds of bass surge
+        arch_dir.update(bass_sem, 0.02f);
+    }
+    float surged_emergence = arch_dir.get_arch_emergence();
+    std::cout << "  -> Architecture emergence after 0.30s bass surge: " << surged_emergence << "\n";
+    assert(surged_emergence > 0.60f); // Quick attack validated!
+
+    // Bass drop / release: decay must be very slow (tau ~ 3.0s, natural hysteresis)
+    core::AudioSemanticVector calm_sem{};
+    calm_sem.is_silent = false;
+    calm_sem.elastic_dilation = 0.0f;
+    calm_sem.emission_pulse = 0.0f;
+    calm_sem.is_onset = false;
+    calm_sem.weight_metal = 1.0f;
+
+    for (int i = 0; i < 10; ++i) { // 0.20 seconds of calm
+        arch_dir.update(calm_sem, 0.02f);
+    }
+    float post_calm_emergence = arch_dir.get_arch_emergence();
+    std::cout << "  -> Architecture emergence 0.20s after bass cut: " << post_calm_emergence << " (natural hysteresis)\n";
+    assert(post_calm_emergence > 0.50f); // Did NOT collapse immediately between beats!
+    assert(post_calm_emergence < surged_emergence); // Decaying smoothly
+
+    // Return to silence: carries smoothly to 0.0f
+    for (int i = 0; i < 400; ++i) { // 8 seconds of silence
+        arch_dir.update(quiet_sem, 0.02f);
+    }
+    assert(arch_dir.get_arch_emergence() < 0.05f);
+
+    // Liquid biome attenuation verification: weight_liquid attenuates emergence
+    core::AudioSemanticVector liquid_sem = bass_sem;
+    liquid_sem.weight_liquid = 1.0f;
+    liquid_sem.weight_metal = 0.0f;
+    director::AutonomousArtDirector liquid_dir;
+    for (int i = 0; i < 20; ++i) {
+        liquid_dir.update(liquid_sem, 0.02f);
+    }
+    float liquid_emergence = liquid_dir.get_arch_emergence();
+    std::cout << "  -> Liquid biome emergence under bass: " << liquid_emergence << " (attenuated)\n";
+    assert(liquid_emergence < 0.25f);
+
+    // Kinematic vertical sinking emergence math verification:
+    // When emergence == 0.5f, sink_offset = (1 - 0.5)^2 * 4.5 = 1.125m
+    glm::vec2 track_0 = director::AutonomousArtDirector::get_track_spline(0.0f);
+    glm::vec3 p_apex_half_sunk(track_0.x, track_0.y + 2.65f - 1.125f, 0.0f);
+    float d_half_sunk = test_sdf_architecture(p_apex_half_sunk, cam_p, 0.0f, 0.0f, 0.0f, time, 0.5f);
+    std::cout << "  -> Half-sunk gate apex (emergence=0.5) distance: " << d_half_sunk << "m\n";
+    assert(std::abs(d_half_sunk) < 0.25f);
+
     std::cout << "  [PASS] Procedural 3D Architectural Elements (Gates, Totems, Rails) fully operational and collision-safe!\n\n";
 }
 

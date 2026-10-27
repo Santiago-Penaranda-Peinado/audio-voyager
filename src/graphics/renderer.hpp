@@ -25,7 +25,7 @@ struct alignas(16) RaymarchingUboData {
     float extra_physics[4];     // x: melodic_mids, y: treble_sparkle, z: is_silent, w: bpm
     float color_primary[4];     // rgb: smoothed primary color, w: spare
     float color_accent[4];      // rgb: smoothed accent color, w: spare
-    float color_zenith[4];      // rgb: smoothed zenith sky color, w: spare
+    float color_zenith[4];      // rgb: smoothed zenith sky color, w: smooth architecture emergence
 };
 
 class Renderer {
@@ -46,6 +46,7 @@ public:
     [[nodiscard]] GLContext& get_context() { return context_; }
     [[nodiscard]] core::PhysicsTuners& get_tuners() noexcept { return tuners_; }
     [[nodiscard]] float get_fps() const { return context_.get_fps(); }
+    [[nodiscard]] float get_arch_emergence() const noexcept { return smooth_arch_emergence_; }
 
 private:
     void init_screen_quad();
@@ -70,6 +71,7 @@ private:
 
     core::PhysicsTuners tuners_{};
     float drop_flash_{0.0f};
+    float smooth_arch_emergence_{0.0f};
 
     bool is_fullscreen_{false};
     int windowed_x_{100};
