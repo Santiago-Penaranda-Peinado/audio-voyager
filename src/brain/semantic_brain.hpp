@@ -52,6 +52,18 @@ private:
     float smooth_centroid_{0.5f};
     float smooth_speed_{7.5f};
 
+    // Multi-Band Muscle Dual-Component Envelopes (Macro Sustained + Micro Transients)
+    float fast_sub_bass_{0.0f};
+    float slow_sub_bass_{0.0f};
+    float fast_mids_{0.0f};
+    float slow_mids_{0.0f};
+    float fast_air_{0.0f};
+    float slow_air_{0.0f};
+    float fast_ripple_{0.0f};
+    float slow_ripple_{0.0f};
+    float fast_energy_{0.0f};
+    float slow_energy_{0.0f};
+
     // Fast transient rhythm and tempo gear-shift reactivity
     float prev_energy_{0.0f};
     float prev_flux_{0.0f};

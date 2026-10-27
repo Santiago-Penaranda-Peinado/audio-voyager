@@ -26,10 +26,16 @@ inline float smax(float a, float b, float k) {
 // -----------------------------------------------------------------------------
 // SDF implementations exactly matching shaders/raymarching.frag
 // -----------------------------------------------------------------------------
+inline glm::vec2 rot2(glm::vec2 v, float a) {
+    float s = std::sin(a), c = std::cos(a);
+    return glm::vec2(c * v.x - s * v.y, s * v.x + c * v.y);
+}
+
 float test_sdf_liquid(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float is_silent, float time) {
     glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
     glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
     float wave_scale = 1.0f - is_silent * 0.95f;
+
     float wave1 = std::sin(p.x * 0.35f + time * 1.4f) * std::cos(p.z * 0.28f + time * 1.0f) * (0.45f * wave_scale + dilation * 0.55f);
     float wave2 = std::sin((p.x + p.z) * 0.55f + time * 2.0f) * (0.22f * wave_scale + mids * 0.35f);
     float wave_bass = std::sin(glm::length(p_rel) * 0.25f - time * 3.0f) * (dilation * 0.50f * wave_scale);
@@ -38,12 +44,15 @@ float test_sdf_liquid(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, 
 
     float d_liq_geom = d_ocean;
     if (is_silent < 0.8f) {
-        float orb_id = std::floor((p.z + 7.0f) / 14.0f);
-        glm::vec3 q_orb(p_rel.x, p_rel.y, std::fmod(p.z + 7.0f, 14.0f) - 7.0f);
-        q_orb.x = std::abs(q_orb.x) - (4.8f + dilation * 0.6f);
-        q_orb.y = p_rel.y - (0.4f + 0.8f * std::sin(orb_id * 1.8f + time * 1.3f));
-        float d_orb = glm::length(q_orb) - (0.95f + dilation * 0.50f + mids * 0.30f);
-        d_liq_geom = smin(d_ocean, d_orb, 1.25f);
+        float orb_id = std::floor((p.z + 8.0f) / 16.0f);
+        glm::vec3 q_orb(std::abs(p_rel.x) - (6.5f + dilation * 1.2f), p_rel.y - (0.8f + 1.2f * std::sin(orb_id * 1.8f + time * 1.2f)), std::fmod(p.z + 8.0f, 16.0f) - 8.0f);
+        float d_orb = glm::length(q_orb) - (1.4f + dilation * 0.6f + mids * 0.4f);
+
+        float qz_arch = std::fmod(p.z + 14.0f, 28.0f) - 14.0f;
+        float r_arch = glm::length(glm::vec2(p_rel.x, std::max(0.0f, p_rel.y + 0.5f))) - (6.8f + dilation * 1.0f);
+        float d_arch = glm::length(glm::vec2(r_arch, qz_arch)) - (0.75f + mids * 0.35f);
+
+        d_liq_geom = smin(d_ocean, std::min(d_orb, d_arch), 1.25f);
     }
 
     float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
@@ -56,70 +65,77 @@ float test_sdf_metal(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, f
     glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
     glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
 
-    float chasm_width = 3.8f + dilation * 0.6f;
-    float d_walls = chasm_width - std::abs(p_rel.x);
+    // 1. Suspended Rocky Roadway Slab
+    glm::vec2 d_slab(std::abs(p_rel.x) - (3.2f + dilation * 0.4f), std::abs(p_rel.y - (-2.9f)) - 0.5f);
+    float d_road_slab = glm::length(glm::max(d_slab, glm::vec2(0.0f))) + std::min(std::max(d_slab.x, d_slab.y), 0.0f);
 
-    float crag_shape = (1.0f - std::abs(std::sin(p.x * 1.8f + std::sin(p.z * 0.7f)))) * std::abs(std::cos(p.z * 1.4f));
-    float ground_crags = crag_shape * (0.8f + dilation * 1.4f + mids * 0.5f);
-    float d_ground = (p.y - ((track_c.y - 2.6f) + ground_crags)) * 0.65f;
+    // 2. Tier 1 Megaliths
+    glm::vec3 q_mega(std::abs(p_rel.x) - (4.8f + dilation * 0.5f), p_rel.y - 2.0f, std::fmod(p.z + 6.0f, 12.0f) - 6.0f);
+    glm::vec3 b_mega(0.65f, 4.5f + mids * 0.8f, 1.2f);
+    glm::vec3 d_b_m = glm::abs(q_mega) - b_mega;
+    float d_megalith = glm::length(glm::max(d_b_m, glm::vec3(0.0f))) + std::min(std::max(d_b_m.x, std::max(d_b_m.y, d_b_m.z)), 0.0f) - 0.15f;
 
-    float spire_id = std::floor((p.z + 4.0f) / 8.0f);
-    glm::vec3 q_spire;
-    q_spire.x = std::abs(p_rel.x) - (3.4f + dilation * 0.5f);
-    q_spire.y = p_rel.y;
-    q_spire.z = std::fmod(p.z + 4.0f, 8.0f) - 4.0f;
-    float z_spire_cell = q_spire.z;
+    // 3. Tier 2 Titanic Obsidian Needles
+    float spire_id = std::floor((p.z + 8.0f) / 16.0f);
+    glm::vec3 q_spire(std::abs(p_rel.x) - (9.5f + dilation * 0.6f), p_rel.y - 4.5f, std::fmod(p.z + 8.0f, 16.0f) - 8.0f);
+    glm::vec2 sp_xy = rot2(glm::vec2(q_spire.x, q_spire.y), spire_id * 0.35f + time * 0.3f);
+    q_spire.x = sp_xy.x; q_spire.y = sp_xy.y;
+    glm::vec2 sp_yz = rot2(glm::vec2(q_spire.y, q_spire.z), mids * 0.35f);
+    q_spire.y = sp_yz.x; q_spire.z = sp_yz.y;
+    float octa_titan = (std::abs(q_spire.x) + std::abs(q_spire.y * 0.14f) + std::abs(q_spire.z) - (1.6f + mids * 0.5f)) * 0.57735027f;
+    float d_titan = std::max(octa_titan, std::abs(q_spire.y) - 7.5f);
 
-    float s = std::sin(spire_id * 0.45f + time * 0.4f), c = std::cos(spire_id * 0.45f + time * 0.4f);
-    glm::vec2 sp_xy(c * q_spire.x - s * q_spire.y, s * q_spire.x + c * q_spire.y);
-    q_spire.x = sp_xy.x;
-    q_spire.y = sp_xy.y;
-
-    float s_yz = std::sin(mids * 0.45f), c_yz = std::cos(mids * 0.45f);
-    glm::vec2 sp_yz(c_yz * q_spire.y - s_yz * q_spire.z, s_yz * q_spire.y + c_yz * q_spire.z);
-    q_spire.y = sp_yz.x;
-    q_spire.z = sp_yz.y;
-
-    float octa_spire = (std::abs(q_spire.x) + std::abs(q_spire.y * 0.22f) + std::abs(q_spire.z) - (0.85f + mids * 0.40f)) * 0.57735027f;
-    float d_monolith = std::max(octa_spire, std::max(std::abs(q_spire.z) - 3.2f, std::abs(z_spire_cell) - 3.6f));
-
+    // 4. Floating razor dagger shards
     float dagger_id = std::floor((p.z + 3.0f) / 6.0f);
-    glm::vec3 q_dagger(std::abs(p_rel.x) - (2.8f + dilation * 0.4f), std::abs(p_rel.y) - 0.8f, std::fmod(p.z + 3.0f, 6.0f) - 3.0f);
-    float s_dag = std::sin(time * 0.8f + dagger_id * 0.6f), c_dag = std::cos(time * 0.8f + dagger_id * 0.6f);
-    glm::vec2 dag_xy(c_dag * q_dagger.x - s_dag * q_dagger.y, s_dag * q_dagger.x + c_dag * q_dagger.y);
-    q_dagger.x = dag_xy.x;
-    q_dagger.y = dag_xy.y;
+    glm::vec3 q_dagger(std::abs(p_rel.x) - (3.6f + dilation * 0.4f), std::abs(p_rel.y) - 0.8f, std::fmod(p.z + 3.0f, 6.0f) - 3.0f);
+    glm::vec2 dag_xy = rot2(glm::vec2(q_dagger.x, q_dagger.y), time * 0.8f + dagger_id * 0.6f);
+    q_dagger.x = dag_xy.x; q_dagger.y = dag_xy.y;
     float octa_dagger = (std::abs(q_dagger.x) + std::abs(q_dagger.y) + std::abs(q_dagger.z) - (0.50f + mids * 0.30f)) * 0.57735027f;
     float d_dagger = std::max(octa_dagger, std::abs(q_dagger.z) - 1.8f);
 
-    float d_canyon_geom = std::min(d_walls, std::min(d_ground, std::min(d_monolith, d_dagger)));
+    float d_metal_geom = std::min(d_road_slab, std::min(d_megalith, std::min(d_titan, d_dagger)));
+
     float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
     float d_cam_bubble     = glm::length(p - cam_p) - (2.0f + dilation * 0.2f);
     float d_flight_corridor = std::min(d_track_corridor, d_cam_bubble);
-    return smax(d_canyon_geom, -d_flight_corridor, 0.40f);
+    return smax(d_metal_geom, -d_flight_corridor, 0.40f);
 }
 
 float test_sdf_cyber(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids, float time) {
     glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
     glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
-    glm::vec2 q_xy = glm::abs(p_rel);
-    float d_corridor = (3.8f + dilation * 0.6f) - std::max(q_xy.x, q_xy.y);
 
-    float eq_id = std::floor((p.z + 1.8f) / 3.6f);
-    glm::vec3 q_eq(p_rel.x, p_rel.y, std::fmod(p.z + 1.8f, 3.6f) - 1.8f);
-    float eq_height = 0.6f + 2.2f * (dilation * 1.4f + mids * 0.8f) * std::abs(std::sin(eq_id * 1.4f + time * 5.0f));
-    glm::vec3 d_eq_box = glm::abs(glm::vec3(std::abs(q_eq.x) - 3.0f, std::abs(q_eq.y) - (3.6f - eq_height * 0.5f), q_eq.z)) - glm::vec3(0.40f, eq_height * 0.5f, 0.55f);
-    float d_eq = std::max(d_eq_box.x, std::max(d_eq_box.y, d_eq_box.z));
+    // 1. Suspended Freeway Slab
+    glm::vec2 d_hw(std::abs(p_rel.x) - (3.4f + dilation * 0.4f), std::abs(p_rel.y - (-2.7f)) - 0.4f);
+    float d_highway = glm::length(glm::max(d_hw, glm::vec2(0.0f))) + std::min(std::max(d_hw.x, d_hw.y), 0.0f);
 
-    glm::vec3 q_ring(p_rel.x, p_rel.y, std::fmod(p.z + 3.0f, 6.0f) - 3.0f);
-    float ring_body = std::abs(glm::length(glm::vec2(q_ring.x, q_ring.y)) - (3.2f + dilation * 0.4f)) - 0.14f;
-    float d_ring = std::max(ring_body, std::abs(q_ring.z) - 0.22f);
+    // 2. Row 1: Audio-Reactive Equalizer Towers at 4.5m
+    float eq_id = std::floor((p.z + 2.0f) / 4.0f);
+    float eq_h = 2.0f + 3.0f * (dilation * 1.2f + mids * 0.8f) * std::abs(std::sin(eq_id * 1.4f + time * 5.0f));
+    glm::vec3 q_eq(std::abs(p_rel.x) - (4.5f + dilation * 0.4f), p_rel.y - (-2.3f + eq_h * 0.5f), std::fmod(p.z + 2.0f, 4.0f) - 2.0f);
+    glm::vec3 b_eq(0.55f, eq_h * 0.5f, 0.70f);
+    glm::vec3 d_b_eq = glm::abs(q_eq) - b_eq;
+    float d_eq = glm::length(glm::max(d_b_eq, glm::vec3(0.0f))) + std::min(std::max(d_b_eq.x, std::max(d_b_eq.y, d_b_eq.z)), 0.0f) - 0.05f;
 
+    // 3. Row 2: Colossal Background Skyscrapers at 10.0m
+    float bg_id = std::floor((p.z + 5.0f) / 10.0f);
+    float bg_h = 8.0f + 5.5f * std::abs(std::sin(bg_id * 1.7f + 0.5f));
+    glm::vec3 q_bg(std::abs(p_rel.x) - (10.0f + dilation * 0.5f), p_rel.y - (-2.0f + bg_h * 0.5f), std::fmod(p.z + 5.0f, 10.0f) - 5.0f);
+    glm::vec3 b_bg(1.8f, bg_h * 0.5f, 2.2f);
+    glm::vec3 d_b_bg = glm::abs(q_bg) - b_bg;
+    float d_mega_tower = glm::length(glm::max(d_b_bg, glm::vec3(0.0f))) + std::min(std::max(d_b_bg.x, std::max(d_b_bg.y, d_b_bg.z)), 0.0f) - 0.1f;
+
+    // 4. Clean Accelerator Rings every 12 meters
+    glm::vec3 q_ring(p_rel.x, p_rel.y, std::fmod(p.z + 6.0f, 12.0f) - 6.0f);
+    float ring_body = std::abs(glm::length(glm::vec2(q_ring.x, q_ring.y)) - (4.6f + dilation * 0.4f)) - 0.18f;
+    float d_ring = std::max(ring_body, std::abs(q_ring.z) - 0.25f);
+
+    // 5. Energy Conduit Rails
     glm::vec2 q_rails = glm::abs(p_rel) - glm::vec2(2.6f);
     float d_rails = glm::length(q_rails) - 0.12f;
 
-    float d_tech = std::min(d_ring, std::min(d_rails, d_eq));
-    float d_cyber_geom = std::min(d_corridor, d_tech);
+    float d_cyber_geom = std::min(d_highway, std::min(d_eq, std::min(d_mega_tower, std::min(d_ring, d_rails))));
+
     float d_track_corridor = glm::length(p_rel) - (2.4f + dilation * 0.3f);
     float d_cam_bubble     = glm::length(p - cam_p) - (2.0f + dilation * 0.2f);
     float d_flight_corridor = std::min(d_track_corridor, d_cam_bubble);
@@ -130,25 +146,27 @@ float test_sdf_dubstep(glm::vec3 p, glm::vec3 cam_p, float dilation, float mids,
     glm::vec2 track_c = director::AutonomousArtDirector::get_track_spline(p.z);
     glm::vec2 p_rel(p.x - track_c.x, p.y - track_c.y);
 
-    float wobble = std::sin(p.z * 1.2f - time * 12.0f) * (dilation * 0.75f);
-    float tunnel_radius = 3.6f + dilation * 0.8f + wobble;
-    float d_void_tunnel = tunnel_radius - glm::length(p_rel);
+    // 1. Heavy Energy Track Slab
+    glm::vec2 d_dub_track(std::abs(p_rel.x) - (3.0f + dilation * 0.4f), std::abs(p_rel.y - (-2.6f)) - 0.4f);
+    float d_heavy_track = glm::length(glm::max(d_dub_track, glm::vec2(0.0f))) + std::min(std::max(d_dub_track.x, d_dub_track.y), 0.0f);
 
-    float bass_groove = 0.06f * std::sin(p.z * 3.0f - time * 12.0f) * dilation;
-    d_void_tunnel = (d_void_tunnel + bass_groove) * 0.85f;
-
-    glm::vec3 q_ring(p_rel.x, p_rel.y, std::fmod(p.z + 2.0f, 4.0f) - 2.0f);
-    glm::vec2 p_hex = glm::abs(glm::vec2(q_ring.x, q_ring.y));
+    // 2. Mega-Hexagonal Quantum Gravity Rings
+    glm::vec3 q_hex(p_rel.x, p_rel.y, std::fmod(p.z + 4.0f, 8.0f) - 4.0f);
+    glm::vec2 p_hex = glm::abs(glm::vec2(q_hex.x, q_hex.y));
     float hex_dist = std::max(p_hex.x * 0.866025f + p_hex.y * 0.5f, p_hex.y);
-    float d_hex_ring = std::abs(hex_dist - (3.3f + dilation * 0.6f)) - 0.18f;
-    float d_ring_segment = std::max(d_hex_ring, std::abs(q_ring.z) - 0.26f);
+    float r_hex = 5.2f + dilation * 0.7f;
+    float d_hex_ring = std::abs(hex_dist - r_hex) - (0.24f + dilation * 0.08f);
+    float d_ring_segment = std::max(d_hex_ring, std::abs(q_hex.z) - (0.35f + dilation * 0.10f));
 
-    glm::vec3 q_res(std::abs(p_rel.x) - (3.4f + dilation * 0.5f), p_rel.y, std::fmod(p.z + 3.0f, 6.0f) - 3.0f);
-    glm::vec3 box_dim(0.45f, 1.2f + dilation * 1.5f + mids * 0.6f, 0.45f);
+    // 3. Massive Sub-Bass Resonator Pillars
+    float wobble_scale = std::sin(p.z * 1.2f - time * 12.0f) * (dilation * 0.5f);
+    glm::vec3 q_res(std::abs(p_rel.x) - (5.0f + dilation * 0.8f), p_rel.y, std::fmod(p.z + 3.0f, 6.0f) - 3.0f);
+    glm::vec3 box_dim(0.65f + dilation * 0.3f, 2.2f + dilation * 2.5f + mids * 0.8f + wobble_scale, 0.65f + dilation * 0.3f);
     glm::vec3 d_b = glm::abs(q_res) - box_dim;
-    float d_resonator = std::max(d_b.x, std::max(d_b.y, d_b.z));
+    float d_resonator = glm::length(glm::max(d_b, glm::vec3(0.0f))) + std::min(std::max(d_b.x, std::max(d_b.y, d_b.z)), 0.0f) - 0.12f;
 
-    float d_dub_geom = std::min(d_void_tunnel, std::min(d_ring_segment, d_resonator));
+    float d_dub_geom = std::min(d_heavy_track, std::min(d_ring_segment, d_resonator));
+
     float d_track_corridor = glm::length(p_rel) - (2.6f + dilation * 0.3f);
     float d_cam_bubble     = glm::length(p - cam_p) - (2.0f + dilation * 0.2f);
     float d_flight_corridor = std::min(d_track_corridor, d_cam_bubble);
@@ -1135,6 +1153,36 @@ void test_muscle_multiband_connectivity() {
     std::cout << "  -> Stream B band_mids Resonance: " << vec_mids_air.melodic_mids << " | band_air Sparkle: " << vec_mids_air.treble_sparkle << "\n";
     assert(vec_mids_air.melodic_mids > 0.30f);
     assert(vec_mids_air.treble_sparkle > 0.40f);
+
+    // 11.4 Test Desaturation & Dynamic Headroom under Sustained High Volume
+    core::PhysicsAudioState loud_state{};
+    loud_state.stream_a.rms = 0.90f;
+    loud_state.stream_b.energy = 0.90f;
+    loud_state.stream_b.band_sub_bass = 0.95f;
+    loud_state.stream_b.band_mids = 0.90f;
+    loud_state.stream_b.band_air = 0.90f;
+    loud_state.stream_a.spectrum_bands = {0.95f, 0.90f, 0.85f, 0.85f, 0.80f, 0.80f, 0.85f, 0.90f};
+    for (int i = 0; i < 80; ++i) {
+        brain.update(loud_state, 0.02f);
+    }
+    auto vec_sustained = brain.get_semantic_vector();
+    std::cout << "  -> Sustained Loud Audio Saturation Base: Dilation=" << vec_sustained.elastic_dilation 
+              << " | Mids=" << vec_sustained.melodic_mids 
+              << " | Sparkle=" << vec_sustained.treble_sparkle << "\n";
+    // Must remain compressed in 0.45f - 0.65f range, leaving ~40% dynamic headroom (never stuck at 1.00!)
+    assert(vec_sustained.elastic_dilation >= 0.45f && vec_sustained.elastic_dilation <= 0.65f);
+    assert(vec_sustained.melodic_mids >= 0.45f && vec_sustained.melodic_mids <= 0.65f);
+    assert(vec_sustained.treble_sparkle >= 0.45f && vec_sustained.treble_sparkle <= 0.65f);
+
+    // 11.5 Test Micro-Transient Injection on top of Sustained Base
+    loud_state.stream_b.is_onset = true;
+    loud_state.stream_b.onset_strength = 1.0f;
+    brain.update(loud_state, 0.02f);
+    const auto& vec_transient = brain.get_semantic_vector();
+    std::cout << "  -> Micro-Transient Attack on Sustained Base: Dilation=" << vec_transient.elastic_dilation
+              << " | Ripple=" << vec_transient.surface_ripple << "\n";
+    assert(vec_transient.elastic_dilation > vec_sustained.elastic_dilation);
+    assert(vec_transient.surface_ripple > 0.25f);
 
     std::cout << "  [PASS] Stream B's 5 physical bands and bands[5] Presence drive muscle excitations directly!\n\n";
 }

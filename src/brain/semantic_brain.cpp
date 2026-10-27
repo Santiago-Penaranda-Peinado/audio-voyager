@@ -249,7 +249,18 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
 
     if (is_silent) {
         gear_shift_impulse_ = 0.0f;
-        // Modo Reposo Zen en Silencio
+        // Modo Reposo Zen en Silencio: decaer envolventes suavemente
+        fast_sub_bass_ += (1.0f - std::exp(-25.0f * dt)) * (0.0f - fast_sub_bass_);
+        slow_sub_bass_ += (1.0f - std::exp(-8.0f * dt))  * (0.0f - slow_sub_bass_);
+        fast_mids_     += (1.0f - std::exp(-25.0f * dt)) * (0.0f - fast_mids_);
+        slow_mids_     += (1.0f - std::exp(-8.0f * dt))  * (0.0f - slow_mids_);
+        fast_air_      += (1.0f - std::exp(-35.0f * dt)) * (0.0f - fast_air_);
+        slow_air_      += (1.0f - std::exp(-8.0f * dt))  * (0.0f - slow_air_);
+        fast_ripple_   += (1.0f - std::exp(-45.0f * dt)) * (0.0f - fast_ripple_);
+        slow_ripple_   += (1.0f - std::exp(-15.0f * dt)) * (0.0f - slow_ripple_);
+        fast_energy_   += (1.0f - std::exp(-30.0f * dt)) * (0.0f - fast_energy_);
+        slow_energy_   += (1.0f - std::exp(-8.0f * dt))  * (0.0f - slow_energy_);
+
         smooth_dilation_ += (1.0f - std::exp(-8.0f * dt)) * (0.0f - smooth_dilation_);
         smooth_ripple_   += (1.0f - std::exp(-20.0f * dt)) * (0.0f - smooth_ripple_);
         smooth_mids_     += (1.0f - std::exp(-8.0f * dt)) * (0.0f - smooth_mids_);
@@ -258,25 +269,50 @@ void SemanticBrain::update(const core::PhysicsAudioState& audio_state, float dt)
         smooth_speed_    += (1.0f - std::exp(-4.0f * dt)) * (5.5f - smooth_speed_);
         vector_.is_onset = false;
     } else {
-        // 2.1 Dilatación Elástica de Cavidad / Olas (Sub-Bass potente de Stream A + Stream B)
-        float target_dilation = std::clamp(raw_sub_bass * 0.60f + audio_state.stream_b.band_sub_bass * 0.40f + (audio_state.stream_b.is_onset ? 0.35f : 0.0f), 0.0f, 1.0f);
-        smooth_dilation_ += (1.0f - std::exp(-30.0f * dt)) * (target_dilation - smooth_dilation_);
+        // 2.1 Dilatación Elástica de Cavidad / Olas (Dual Component: Macro Hiperbólico + Micro-Ataque Sub-Bass)
+        float input_sub_bass = raw_sub_bass * 0.70f + audio_state.stream_b.band_sub_bass * 0.50f + (audio_state.stream_b.is_onset ? 0.35f : 0.0f);
+        fast_sub_bass_ += (1.0f - std::exp(-45.0f * dt)) * (input_sub_bass - fast_sub_bass_);
+        slow_sub_bass_ += (1.0f - std::exp(-6.0f * dt))  * (input_sub_bass - slow_sub_bass_);
+        float macro_sub_bass = std::tanh(slow_sub_bass_ * 0.95f) * 0.62f;
+        float delta_sub_bass = std::max(0.0f, fast_sub_bass_ - slow_sub_bass_) * 0.85f;
+        float target_dilation = std::clamp(macro_sub_bass + delta_sub_bass, 0.0f, 1.0f);
+        smooth_dilation_ += (1.0f - std::exp(-35.0f * dt)) * (target_dilation - smooth_dilation_);
 
-        // 2.2 Ondulación Superficial (Transitorios / Onsets)
-        float target_ripple = audio_state.stream_b.is_onset ? (audio_state.stream_b.onset_strength * 0.70f) : 0.0f;
+        // 2.2 Ondulación Superficial (Dual Component: Macro Transitorios + Micro-Picos de Percusión)
+        float input_ripple = audio_state.stream_b.is_onset ? (audio_state.stream_b.onset_strength * 0.85f) : 0.0f;
+        fast_ripple_ += (1.0f - std::exp(-60.0f * dt)) * (input_ripple - fast_ripple_);
+        slow_ripple_ += (1.0f - std::exp(-12.0f * dt)) * (input_ripple - slow_ripple_);
+        float macro_ripple = std::tanh(slow_ripple_ * 1.1f) * 0.55f;
+        float delta_ripple = std::max(0.0f, fast_ripple_ - slow_ripple_) * 1.1f;
+        float target_ripple = std::clamp(macro_ripple + delta_ripple, 0.0f, 1.0f);
         smooth_ripple_ += (1.0f - std::exp(-45.0f * dt)) * (target_ripple - smooth_ripple_);
 
         // 2.3 Resonancia de Medios (Voz / Melodía / Guitarras + Presencia de banda 5)
-        float target_mids = std::clamp(raw_mids * 0.65f, 0.0f, 1.0f);
-        smooth_mids_ += (1.0f - std::exp(-22.0f * dt)) * (target_mids - smooth_mids_);
+        float input_mids = raw_mids;
+        fast_mids_ += (1.0f - std::exp(-45.0f * dt)) * (input_mids - fast_mids_);
+        slow_mids_ += (1.0f - std::exp(-7.0f * dt))  * (input_mids - slow_mids_);
+        float macro_mids = std::tanh(slow_mids_ * 1.0f) * 0.62f;
+        float delta_mids = std::max(0.0f, fast_mids_ - slow_mids_) * 0.90f;
+        float target_mids = std::clamp(macro_mids + delta_mids, 0.0f, 1.0f);
+        smooth_mids_ += (1.0f - std::exp(-30.0f * dt)) * (target_mids - smooth_mids_);
 
         // 2.4 Destellos de Agudos / Aire (Hi-Hats / Platillos / Sibilancia)
-        float target_air = std::clamp(raw_air * 0.85f, 0.0f, 1.0f);
+        float input_air = raw_air;
+        fast_air_ += (1.0f - std::exp(-50.0f * dt)) * (input_air - fast_air_);
+        slow_air_ += (1.0f - std::exp(-8.0f * dt))  * (input_air - slow_air_);
+        float macro_air = std::tanh(slow_air_ * 1.15f) * 0.62f;
+        float delta_air = std::max(0.0f, fast_air_ - slow_air_) * 0.95f;
+        float target_air = std::clamp(macro_air + delta_air, 0.0f, 1.0f);
         smooth_air_ += (1.0f - std::exp(-35.0f * dt)) * (target_air - smooth_air_);
 
         // 2.5 Pulso de Emisión Volumétrica & HDR Glow
-        float target_emission = 0.7f + raw_energy * 1.5f + (audio_state.stream_b.is_onset ? 0.5f : 0.0f) + gear_shift_impulse_ * 0.35f;
-        smooth_emission_ += (1.0f - std::exp(-18.0f * dt)) * (target_emission - smooth_emission_);
+        float input_energy = raw_energy;
+        fast_energy_ += (1.0f - std::exp(-40.0f * dt)) * (input_energy - fast_energy_);
+        slow_energy_ += (1.0f - std::exp(-8.0f * dt))  * (input_energy - slow_energy_);
+        float macro_emission = 0.60f + std::tanh(slow_energy_ * 1.2f) * 0.55f;
+        float delta_emission = std::max(0.0f, fast_energy_ - slow_energy_) * 0.80f + (audio_state.stream_b.is_onset ? 0.35f : 0.0f) + gear_shift_impulse_ * 0.25f;
+        float target_emission = std::clamp(macro_emission + delta_emission, 0.35f, 1.65f);
+        smooth_emission_ += (1.0f - std::exp(-20.0f * dt)) * (target_emission - smooth_emission_);
 
         // 2.6 Tono HSV Guiado por Centroide
         float target_centroid = std::clamp((raw_centroid_hz - 200.0f) / 4500.0f, 0.0f, 1.0f);

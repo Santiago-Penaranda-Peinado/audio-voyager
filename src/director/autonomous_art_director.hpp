@@ -63,21 +63,61 @@ public:
     // Continuous World-Space Spline Track C(z) = (curve_x(z), curve_y(z))
     // Shared symmetrically between Art Director CPU kinematics and Raymarching GPU shader
     // Curvature scale is 100% music-driven: 0.0 in silence (dead straight), scaling with musical energy
+    // 4 incommensurate spatial harmonics based on golden ratio phi ~ 1.618034
+    static constexpr float SPLINE_KX1 = 0.0350f;
+    static constexpr float SPLINE_KX2 = 0.07204f; // 0.0350 * phi^1.5
+    static constexpr float SPLINE_KX3 = 0.05663f; // 0.0350 * phi
+    static constexpr float SPLINE_KX4 = 0.02163f; // 0.0350 / phi
+    static constexpr float SPLINE_AX1 = 2.4f;
+    static constexpr float SPLINE_AX2 = 1.2f;
+    static constexpr float SPLINE_AX3 = 0.3f;
+    static constexpr float SPLINE_AX4 = 0.3f;
+
+    static constexpr float SPLINE_KY1 = 0.0250f;
+    static constexpr float SPLINE_KY2 = 0.05145f; // 0.0250 * phi^1.5
+    static constexpr float SPLINE_KY3 = 0.04045f; // 0.0250 * phi
+    static constexpr float SPLINE_KY4 = 0.01545f; // 0.0250 / phi
+    static constexpr float SPLINE_AY1 = 0.45f;
+    static constexpr float SPLINE_AY2 = 0.22f;
+    static constexpr float SPLINE_AY3 = 0.12f;
+    static constexpr float SPLINE_AY4 = 0.08f;
+
     [[nodiscard]] static inline glm::vec2 get_track_spline(float z, float curvature_scale = 1.0f) noexcept {
-        float x = (2.8f * std::sin(z * 0.035f) + 1.2f * std::sin(z * 0.075f)) * curvature_scale;
-        float y = 2.7f + (0.55f * std::sin(z * 0.025f) + 0.25f * std::sin(z * 0.060f)) * curvature_scale;
+        float x = (SPLINE_AX1 * std::sin(z * SPLINE_KX1) +
+                   SPLINE_AX2 * std::sin(z * SPLINE_KX2) +
+                   SPLINE_AX3 * std::sin(z * SPLINE_KX3) +
+                   SPLINE_AX4 * std::sin(z * SPLINE_KX4)) * curvature_scale;
+
+        float y = 2.7f + (SPLINE_AY1 * std::sin(z * SPLINE_KY1) +
+                          SPLINE_AY2 * std::sin(z * SPLINE_KY2) +
+                          SPLINE_AY3 * std::sin(z * SPLINE_KY3) +
+                          SPLINE_AY4 * std::sin(z * SPLINE_KY4)) * curvature_scale;
         return glm::vec2(x, y);
     }
 
     [[nodiscard]] static inline glm::vec2 get_track_spline_deriv(float z, float curvature_scale = 1.0f) noexcept {
-        float dx = (2.8f * 0.035f * std::cos(z * 0.035f) + 1.2f * 0.075f * std::cos(z * 0.075f)) * curvature_scale;
-        float dy = (0.55f * 0.025f * std::cos(z * 0.025f) + 0.25f * 0.060f * std::cos(z * 0.060f)) * curvature_scale;
+        float dx = (SPLINE_AX1 * SPLINE_KX1 * std::cos(z * SPLINE_KX1) +
+                    SPLINE_AX2 * SPLINE_KX2 * std::cos(z * SPLINE_KX2) +
+                    SPLINE_AX3 * SPLINE_KX3 * std::cos(z * SPLINE_KX3) +
+                    SPLINE_AX4 * SPLINE_KX4 * std::cos(z * SPLINE_KX4)) * curvature_scale;
+
+        float dy = (SPLINE_AY1 * SPLINE_KY1 * std::cos(z * SPLINE_KY1) +
+                    SPLINE_AY2 * SPLINE_KY2 * std::cos(z * SPLINE_KY2) +
+                    SPLINE_AY3 * SPLINE_KY3 * std::cos(z * SPLINE_KY3) +
+                    SPLINE_AY4 * SPLINE_KY4 * std::cos(z * SPLINE_KY4)) * curvature_scale;
         return glm::vec2(dx, dy);
     }
 
     [[nodiscard]] static inline glm::vec2 get_track_spline_deriv2(float z, float curvature_scale = 1.0f) noexcept {
-        float d2x = (-2.8f * 0.035f * 0.035f * std::sin(z * 0.035f) - 1.2f * 0.075f * 0.075f * std::sin(z * 0.075f)) * curvature_scale;
-        float d2y = (-0.55f * 0.025f * 0.025f * std::sin(z * 0.025f) - 0.25f * 0.060f * 0.060f * std::sin(z * 0.060f)) * curvature_scale;
+        float d2x = (-SPLINE_AX1 * SPLINE_KX1 * SPLINE_KX1 * std::sin(z * SPLINE_KX1) -
+                     SPLINE_AX2 * SPLINE_KX2 * SPLINE_KX2 * std::sin(z * SPLINE_KX2) -
+                     SPLINE_AX3 * SPLINE_KX3 * SPLINE_KX3 * std::sin(z * SPLINE_KX3) -
+                     SPLINE_AX4 * SPLINE_KX4 * SPLINE_KX4 * std::sin(z * SPLINE_KX4)) * curvature_scale;
+
+        float d2y = (-SPLINE_AY1 * SPLINE_KY1 * SPLINE_KY1 * std::sin(z * SPLINE_KY1) -
+                     SPLINE_AY2 * SPLINE_KY2 * SPLINE_KY2 * std::sin(z * SPLINE_KY2) -
+                     SPLINE_AY3 * SPLINE_KY3 * SPLINE_KY3 * std::sin(z * SPLINE_KY3) -
+                     SPLINE_AY4 * SPLINE_KY4 * SPLINE_KY4 * std::sin(z * SPLINE_KY4)) * curvature_scale;
         return glm::vec2(d2x, d2y);
     }
 
